@@ -135,7 +135,7 @@ fun main() {
         val candidates = puzzleState.gameBoards.toMutableList()
 
         val winningGameBoardsOrdered = mutableListOf<GameBoard>()
-        val winningDrawNum = mutableListOf<Int>()
+        val winningDrawNumOrdered = mutableListOf<Int>()
 
         val drawsItr = puzzleState.draws.iterator()
         var drawNum: Int? = null
@@ -147,7 +147,7 @@ fun main() {
                     println("This game board won with drawNum=$drawNum!")
                     println(it)
                     winningGameBoardsOrdered.add(it)
-                    winningDrawNum.add(drawNum!!)
+                    winningDrawNumOrdered.add(drawNum!!)
                     true
                 } else {
                     false
@@ -156,7 +156,7 @@ fun main() {
         }
 
         val lastWinningBoard = winningGameBoardsOrdered.last()
-        val lastDraw = winningDrawNum.last()
+        val lastDraw = winningDrawNumOrdered.last()
         lastWinningBoard.calculateScore(lastDraw)
     }
 
