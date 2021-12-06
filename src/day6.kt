@@ -54,6 +54,36 @@ fun main() {
         }
     }
 
+    fun part2WithLong(inputs: List<String>) {
+        // Map of repro day to num fish
+        var fishMap = mutableMapOf<Int, Long>()
+        val inputNumbers = inputs.first().split(",").map { it.toInt() }
+        println(inputNumbers)
+
+        inputNumbers.forEach {
+            fishMap[it] = fishMap.getOrDefault(it, 0L) + 1L
+        }
+        println(fishMap)
+
+        println("Initial state: $inputNumbers")
+        for (day in 0 until 256) {
+            val newFishMap = mutableMapOf<Int, Long>()
+            for (key in fishMap.keys) {
+                newFishMap[key - 1] = fishMap[key]!!
+            }
+            if (newFishMap.containsKey(-1)) {
+                val numFishesBirthed = newFishMap[-1]!!
+                newFishMap[6] = newFishMap.getOrDefault(6, 0L) + numFishesBirthed
+                newFishMap[8] = newFishMap.getOrDefault(8, 0L) + numFishesBirthed
+                newFishMap.remove(-1)
+            }
+            val numFishes = newFishMap.values.sum()
+            println("After ${day + 1}, num fishes: $numFishes")
+            println(newFishMap)
+            fishMap = newFishMap
+        }
+    }
+
     val testInput = readInput("day6_test")
     val mainInput = readInput("day6")
 
