@@ -1,66 +1,3 @@
-data class SegmentDisplay(
-    val chars: Set<Char>,
-) {
-    constructor(str: String) : this(
-        str.toSet()
-    )
-
-    val numSegmentsActive = chars.size
-
-    companion object {
-        val ZERO = SegmentDisplay(
-            "abcefg"
-        )
-        val ONE = SegmentDisplay(
-            "cf"
-        )
-        val TWO = SegmentDisplay(
-            "acdeg"
-        )
-        val THREE = SegmentDisplay(
-            "acdfg"
-        )
-        val FOUR = SegmentDisplay(
-            "bcdf"
-        )
-        val FIVE = SegmentDisplay(
-            "abdfg"
-        )
-        val SIX = SegmentDisplay(
-            "abdefg"
-        )
-        val SEVEN = SegmentDisplay(
-            "acf"
-        )
-        val EIGHT = SegmentDisplay(
-            "abcdefg"
-        )
-        val NINE = SegmentDisplay(
-            "abcdfg"
-        )
-
-        val segmentNumToDigitList = listOf<SegmentDisplay>(
-            ONE,
-            TWO,
-            THREE,
-            FOUR,
-            FIVE,
-            SIX,
-            SEVEN,
-            EIGHT,
-            NINE
-        ).groupBy { it.numSegmentsActive }
-
-        fun segmentNumToPossibleDigit(num: Int): SegmentDisplay? {
-            val digitList = segmentNumToDigitList.getOrDefault(num, emptyList())
-            if (digitList.size == 1) {
-                return digitList.first()
-            }
-            return null
-        }
-    }
-}
-
 fun main() {
     val configToNum: Map<Set<Char>, Int> = mapOf(
         "abcefg".toSet() to 0,
@@ -74,6 +11,10 @@ fun main() {
         "abcdefg".toSet() to 8,
         "abcdfg".toSet() to 9,
     )
+
+    val groupByNumSegmentActive = configToNum.entries.groupBy {
+        it.key.size
+    }
 
     data class PuzzleInput(
         val signalPatterns: List<String>,
@@ -187,8 +128,8 @@ fun main() {
         var totalEasyDigits = 0
         for (puzzleInput in puzzleInputs) {
             val numEasyDigits = puzzleInput.outputValues.map { it.length }.mapNotNull {
-                SegmentDisplay
-                    .segmentNumToPossibleDigit(it)
+                val list = groupByNumSegmentActive.getOrDefault(it, listOf())
+                if (list.size == 1) list else null
             }.size
             println(
                 """
@@ -228,14 +169,10 @@ fun main() {
     val test2Input = readInput("day8_test2")
     val mainInput = readInput("day8")
 
-    println(
-        configToNum[setOf('f', 'c', 'c')]
-    )
-
-    //    part1(testInput)
-    //    part1(mainInput)
+    //        part1(testInput)
+    //        part1(mainInput)
     //
     //    part2(test2Input)
     //        part2(testInput)
-    part2(mainInput)
+    //    part2(mainInput)
 }
