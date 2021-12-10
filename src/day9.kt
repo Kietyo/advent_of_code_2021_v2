@@ -70,10 +70,6 @@ fun main() {
             )
         }
 
-        fun get(point: Point): Int {
-            return data[point.y][point.x]
-        }
-
         fun calculateBasinSize(point: Point): Int {
             println("calculate basin size for $point")
             val searched = mutableSetOf<Point>()
