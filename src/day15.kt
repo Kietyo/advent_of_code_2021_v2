@@ -1,4 +1,5 @@
-import java.lang.IllegalStateException
+import java.util.*
+import kotlin.Comparator
 
 
 fun main() {
@@ -52,6 +53,14 @@ fun main() {
         val width = grid.first().size
         val height = grid.size
 
+        fun getAllPoints(): List<Point> {
+            return (0 until width).flatMap { x ->
+                (0 until height).map { y ->
+                    Point(x, y)
+                }
+            }
+        }
+
         fun get(point: Point): Int {
             return grid[point.y][point.x]
         }
@@ -65,10 +74,10 @@ fun main() {
 
         fun getNeighbors(point: Point): List<Point> {
             return listOfNotNull(
-                getPointOrNull(point.x - 1, point.y),
                 getPointOrNull(point.x + 1, point.y),
-                getPointOrNull(point.x, point.y - 1),
                 getPointOrNull(point.x, point.y + 1),
+                getPointOrNull(point.x - 1, point.y),
+                getPointOrNull(point.x, point.y - 1),
             )
         }
 
@@ -111,28 +120,27 @@ fun main() {
     }
 
     fun bfs(searchState: SearchState, grid: Grid, maxRiskCost: Int) {
-        val queue = mutableListOf<SearchState>()
+        val queue = PriorityQueue<SearchState> { o1, o2 -> o1!!.riskCost - o2!!.riskCost }
         queue.add(searchState)
 
         var result: SearchState? = null
         val searchedStates = mutableSetOf<SearchState>()
 
+        var explored = 0L
+        var dfsRiskCost = maxRiskCost
+
         while (queue.isNotEmpty()) {
-            val curr = queue.removeFirst()
-            if (curr.riskCost >= maxRiskCost) {
+            explored++
+            val curr = queue.remove()!!
+            if (curr.riskCost >= dfsRiskCost) {
                 // The current solution is already at or greater than the dfs solution
                 continue
             }
-            if (searchedStates.contains(curr)) {
-                continue
-            }
-            searchedStates.add(curr)
             val last = curr.getLast()
             if (last.x == grid.width - 1 && last.y == grid.height - 1) {
                 result = curr
                 break
             }
-            val secondToLast = curr.getSecondToLastOrNull()
 
             val nextPoints = grid.getNeighbors(last).filter { !curr.path.contains(it) }
             for (nextPoint in nextPoints) {
@@ -140,20 +148,68 @@ fun main() {
             }
         }
 
-        println(result)
+        println(
+            """
+            result: $result
+        """.trimIndent()
+        )
+    }
+
+    fun dikjstras(grid: Grid) {
+        val pointsToSearch = grid.getAllPoints().toMutableSet()
+        val minDistanceToPoint = mutableMapOf<Point, Int>()
+        pointsToSearch.forEach {
+            minDistanceToPoint[it] = Int.MAX_VALUE
+        }
+
+        minDistanceToPoint[Point(0, 0)] = 0
+
+        val prev = mutableMapOf<Point, Point>()
+
+        while (pointsToSearch.isNotEmpty()) {
+            val minPoint = pointsToSearch.minOfWith(object : Comparator<Point> {
+                override fun compare(o1: Point?, o2: Point?): Int {
+                    return minDistanceToPoint[o1]!! - minDistanceToPoint[o2]!!
+                }
+
+            }) { it }
+
+            val distanceToCurrent = minDistanceToPoint[minPoint]!!
+
+            pointsToSearch.remove(minPoint)
+
+            val nextPoints = grid.getNeighbors(minPoint)
+            for (nextPoint in nextPoints) {
+                val altDistance = distanceToCurrent + grid.get(nextPoint)
+                if (altDistance < minDistanceToPoint[nextPoint]!!) {
+                    minDistanceToPoint[nextPoint] = altDistance
+                    prev[nextPoint] = minPoint
+                }
+            }
+        }
+
+        println(
+            """
+            minDistanceToPoint: $minDistanceToPoint
+        """.trimIndent()
+        )
+        println(prev.entries.joinToString("\n"))
+
+        println(minDistanceToPoint[Point(grid.width - 1, grid.height - 1)])
     }
 
     fun part1(inputs: List<String>) {
         val grid = Grid(inputs.map { row -> row.toList().map { it.digitToInt() }.toIntArray() })
 
-        val initialState = SearchState(listOf(Point(0, 0)), grid.get(Point(0, 0)))
+        val initialState = SearchState(listOf(Point(0, 0)), 0)
 
-        val dfsSolution = dfs(initialState, grid)
+        //        val dfsSolution = dfs(initialState, grid)
+        //
+        //        println(dfsSolution)
 
-        println(dfsSolution)
+        //        bfs(initialState, grid, dfsSolution.riskCost)
 
-        bfs(initialState, grid, dfsSolution.riskCost)
-
+        dikjstras(grid)
     }
 
     fun part2(inputs: List<String>) {
@@ -163,8 +219,8 @@ fun main() {
     val testInput = readInput("day15_test")
     val mainInput = readInput("day15")
 
-    part1(testInput)
-    //    part1(mainInput)
+    //        part1(testInput)
+    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
