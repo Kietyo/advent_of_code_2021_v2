@@ -48,7 +48,7 @@ fun main() {
 
 
     data class Grid(
-        val grid: List<IntArray>
+        val grid: Array<IntArray>
     ) {
         val width = grid.first().size
         val height = grid.size
@@ -167,6 +167,7 @@ fun main() {
         val prev = mutableMapOf<Point, Point>()
 
         while (pointsToSearch.isNotEmpty()) {
+            println("Number of points remaining: ${pointsToSearch.size}")
             val minPoint = pointsToSearch.minOfWith(object : Comparator<Point> {
                 override fun compare(o1: Point?, o2: Point?): Int {
                     return minDistanceToPoint[o1]!! - minDistanceToPoint[o2]!!
@@ -198,8 +199,59 @@ fun main() {
         println(minDistanceToPoint[Point(grid.width - 1, grid.height - 1)])
     }
 
+    fun dikjstras_v2(grid: Grid) {
+        val minDistanceToPoint = mutableMapOf<Point, Int>()
+        grid.getAllPoints().forEach {
+            minDistanceToPoint[it] = Int.MAX_VALUE
+        }
+
+        minDistanceToPoint[Point(0, 0)] = 0
+
+        val pointsToSearch = mutableSetOf<Point>()
+        pointsToSearch.add(Point(0, 0))
+
+        val alreadySearched = mutableSetOf<Point>()
+
+
+        var explored = 0
+        while (pointsToSearch.isNotEmpty()) {
+            explored++
+            println("Number of points remaining: ${pointsToSearch.size}")
+            if (explored == 2) {
+                println("here")
+            }
+            val minPoint = pointsToSearch.minByOrNull { minDistanceToPoint[it]!! }!!
+            val distanceToCurrent = minDistanceToPoint[minPoint]!!
+            pointsToSearch.remove(minPoint)
+            if (alreadySearched.contains(minPoint)) {
+                continue
+            }
+
+            val nextPoints = grid.getNeighbors(minPoint).filter {
+                minDistanceToPoint[it] == Int.MAX_VALUE
+            }
+            for (nextPoint in nextPoints) {
+                val altDistance = distanceToCurrent + grid.get(nextPoint)
+                if (altDistance < minDistanceToPoint[nextPoint]!!) {
+                    minDistanceToPoint[nextPoint] = altDistance
+                    pointsToSearch.add(nextPoint)
+                }
+            }
+        }
+
+        println(
+            """
+            minDistanceToPoint: $minDistanceToPoint
+        """.trimIndent()
+        )
+        //        println(prev.entries.joinToString("\n"))
+
+        println(minDistanceToPoint[Point(grid.width - 1, grid.height - 1)])
+    }
+
     fun part1(inputs: List<String>) {
-        val grid = Grid(inputs.map { row -> row.toList().map { it.digitToInt() }.toIntArray() })
+        val grid = Grid(inputs.map { row -> row.toList().map { it.digitToInt() }.toIntArray() }
+            .toTypedArray())
 
         val initialState = SearchState(listOf(Point(0, 0)), 0)
 
@@ -213,15 +265,48 @@ fun main() {
     }
 
     fun part2(inputs: List<String>) {
+        val height = inputs.size
+        val width = inputs.first().length
 
+        val originalData = inputs.map { row -> row.toList().map { it.digitToInt() }.toIntArray() }
+
+        val actualHeight = height * 5
+        val actualWidth = width * 5
+
+        val data = Array(actualHeight) { IntArray(actualWidth) }
+        for (yOffset in 0 until 5) {
+            for (xOffset in 0 until 5) {
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        data[y + yOffset * height][x + xOffset * width] =
+                            (originalData[y][x] + xOffset + yOffset - 1) % 9 + 1
+                    }
+                }
+            }
+        }
+
+
+        val grid = Grid(data)
+
+        grid.print2dGrid()
+        //
+        //        val initialState = SearchState(listOf(Point(0, 0)), 0)
+        //
+        //        //        val dfsSolution = dfs(initialState, grid)
+        //        //
+        //        //        println(dfsSolution)
+        //
+        //        //        bfs(initialState, grid, dfsSolution.riskCost)
+        //
+        dikjstras_v2(grid)
     }
 
     val testInput = readInput("day15_test")
     val mainInput = readInput("day15")
 
     //        part1(testInput)
-    part1(mainInput)
+    //    part1(mainInput)
     //
-    //    part2(testInput)
-    //    part2(mainInput)
+    //        part2(testInput)
+    part2(mainInput)
 }
