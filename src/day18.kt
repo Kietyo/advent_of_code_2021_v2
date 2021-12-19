@@ -5,8 +5,10 @@ data class SplitResult(val splitOccurred: Boolean, val result: SnailNode)
 sealed interface SnailNode {
     fun print(tab: Int = 0)
     fun split(): SplitResult
-    fun explode(): ExplosionResult.FinalResult
+    fun explode(): ExplosionResult
     fun explodeInternal(depth: Int): ExplosionResult
+    fun calculateMagnitude(): Long
+    fun reduce(): SnailNode
     operator fun plus(other: SnailNode): SnailNode
 }
 
@@ -36,8 +38,11 @@ sealed class ExplosionResult {
         val result: SnailNode
     ) : ExplosionResult()
 
-    data class FinalResult(
-        val explosionOcurred: Boolean,
+    data class FinalResultWithExplosion(
+        val result: SnailNode
+    ) : ExplosionResult()
+
+    data class FinalResultNoExplosion(
         val result: SnailNode
     ) : ExplosionResult()
 }
@@ -59,12 +64,20 @@ data class SnailNumber(val num: Long) : ParsingNode(), SnailNode {
         else SplitResult(false, this)
     }
 
-    override fun explode(): ExplosionResult.FinalResult {
-        return explodeInternal(0) as ExplosionResult.FinalResult
+    override fun explode(): ExplosionResult.FinalResultWithExplosion {
+        return explodeInternal(0) as ExplosionResult.FinalResultWithExplosion
     }
 
     override fun explodeInternal(depth: Int): ExplosionResult {
-        return ExplosionResult.FinalResult(false, this)
+        return ExplosionResult.FinalResultNoExplosion(this)
+    }
+
+    override fun calculateMagnitude(): Long {
+        return num
+    }
+
+    override fun reduce(): SnailNode {
+        return this
     }
 
     override fun plus(other: SnailNode): SnailPair {
@@ -74,6 +87,19 @@ data class SnailNumber(val num: Long) : ParsingNode(), SnailNode {
 
 
 data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(), SnailNode {
+    fun addToRightMostNumber(num: Long): SnailPair {
+        return when (right) {
+            is SnailNumber -> SnailPair(
+                left,
+                SnailNumber(num + right.num)
+            )
+            is SnailPair -> SnailPair(
+                left,
+                right.addToRightMostNumber(num)
+            )
+        }
+    }
+
     fun addToLeftMostNumber(num: Long): SnailPair {
         return when (left) {
             is SnailNumber -> SnailPair(
@@ -96,56 +122,19 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
                     this
                 )
             } else {
-                return ExplosionResult.FinalResult(false, this)
+                return ExplosionResult.FinalResultNoExplosion(this)
             }
         }
 
         return when (left) {
             is SnailNumber -> {
-                val rightResult = right.explodeInternal(depth + 1)
-                when (rightResult) {
-                    is ExplosionResult.FinalResult -> {
-                        ExplosionResult.FinalResult(
-                            rightResult.explosionOcurred,
-                            SnailPair(left, rightResult.result),
-                        )
-
-                    }
-                    is ExplosionResult.UnusedFullExplosionResult -> {
-                        val num = rightResult.leftNumber + left.num
-                        ExplosionResult.UnusedRightExplosionResult(
-                            rightResult.rightNumber,
-                            SnailPair(SnailNumber(num), SnailNumber(0))
-                        )
-                    }
-                    is ExplosionResult.UnusedLeftExplosionResult -> {
-                        val num = rightResult.num + left.num
-                        ExplosionResult.FinalResult(
-                            true,
-                            SnailPair(SnailNumber(num), SnailNumber(0))
-                        )
-                    }
-                    is ExplosionResult.UnusedRightExplosionResult -> {
-                        if (depth == 0) {
-                            ExplosionResult.FinalResult(
-                                true,
-                                SnailPair(left, rightResult.result)
-                            )
-                        } else {
-                            ExplosionResult.UnusedRightExplosionResult(
-                                rightResult.num,
-                                SnailPair(left, rightResult.result)
-                            )
-                        }
-                    }
-                }
+                handleRightExplosion(depth, left)
             }
             is SnailPair -> {
                 val leftResult = left.explodeInternal(depth + 1)
                 when (leftResult) {
-                    is ExplosionResult.FinalResult -> {
-                        ExplosionResult.FinalResult(
-                            leftResult.explosionOcurred,
+                    is ExplosionResult.FinalResultWithExplosion -> {
+                        ExplosionResult.FinalResultWithExplosion(
                             SnailPair(leftResult.result, right)
                         )
                     }
@@ -160,13 +149,20 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
                                     )
                                 )
                             }
-                            is SnailPair -> TODO()
+                            is SnailPair -> {
+                                ExplosionResult.UnusedLeftExplosionResult(
+                                    leftResult.leftNumber,
+                                    SnailPair(
+                                        SnailNumber(0),
+                                        right.addToLeftMostNumber(leftResult.rightNumber)
+                                    )
+                                )
+                            }
                         }
                     }
                     is ExplosionResult.UnusedLeftExplosionResult -> {
                         if (depth == 0) {
-                            ExplosionResult.FinalResult(
-                                true,
+                            ExplosionResult.FinalResultWithExplosion(
                                 SnailPair(
                                     leftResult.result,
                                     right
@@ -185,17 +181,15 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
                     is ExplosionResult.UnusedRightExplosionResult -> {
                         when (right) {
                             is SnailNumber -> {
-                                ExplosionResult.FinalResult(
-                                    true,
+                                ExplosionResult.FinalResultWithExplosion(
                                     SnailPair(
                                         leftResult.result,
-                                        SnailNumber(leftResult.num + right.num)
+                                        SnailNumber(right.num + leftResult.num)
                                     )
                                 )
                             }
                             is SnailPair -> {
-                                ExplosionResult.FinalResult(
-                                    true,
+                                ExplosionResult.FinalResultWithExplosion(
                                     SnailPair(
                                         leftResult.result,
                                         right.addToLeftMostNumber(leftResult.num)
@@ -204,10 +198,146 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
                             }
                         }
                     }
+                    is ExplosionResult.FinalResultNoExplosion -> {
+                        when (right) {
+                            is SnailNumber -> {
+                                ExplosionResult.FinalResultNoExplosion(
+                                    this
+                                )
+                            }
+                            is SnailPair -> handleRightExplosion(depth, left)
+                        }
+                    }
                 }
             }
         }
 
+    }
+
+    override fun calculateMagnitude(): Long {
+        return 3 * left.calculateMagnitude() + 2 * right.calculateMagnitude()
+    }
+
+    override fun reduce(): SnailNode {
+        var result: SnailNode = this
+
+        while (true) {
+            var i = 0
+            var hasExplosion = true
+            while (hasExplosion) {
+                val explosionResult = result.explode()
+
+                println(
+                    """
+                        explosion: $i
+                        explosionResult: $explosionResult
+                    """.trimIndent()
+                )
+                i++
+                when (explosionResult) {
+                    is ExplosionResult.FinalResultNoExplosion -> {
+                        result = explosionResult.result
+                        result.print()
+                        hasExplosion = false
+                    }
+                    is ExplosionResult.FinalResultWithExplosion -> {
+                        result = explosionResult.result
+                        result.print()
+                        hasExplosion = true
+                    }
+                    else -> TODO()
+                }
+            }
+
+            val splitResult = result.split()
+
+            println(
+                """
+                    splitResult: $splitResult
+                """.trimIndent()
+            )
+
+            result = splitResult.result
+            if (!splitResult.splitOccurred) {
+                break
+            }
+        }
+
+        return result
+    }
+
+    private fun handleRightExplosion(depth: Int, left: SnailNode): ExplosionResult {
+        val explosionResult = right.explodeInternal(depth + 1)
+        return when (explosionResult) {
+            is ExplosionResult.FinalResultWithExplosion -> {
+                ExplosionResult.FinalResultWithExplosion(
+                    SnailPair(left, explosionResult.result),
+                )
+            }
+            is ExplosionResult.UnusedFullExplosionResult -> {
+                when (left) {
+                    is SnailNumber -> {
+                        ExplosionResult.UnusedRightExplosionResult(
+                            explosionResult.rightNumber,
+                            SnailPair(
+                                SnailNumber(explosionResult.leftNumber + left.num),
+                                SnailNumber(0)
+                            )
+                        )
+                    }
+                    is SnailPair -> {
+                        TODO()
+                        //                        ExplosionResult.UnusedRightExplosionResult(
+                        //                            explosionResult.rightNumber,
+                        //                            SnailPair(
+                        //                                left.addToRightMostNumber(explosionResult.leftNumber),
+                        //                                explosionResult.result
+                        //                            )
+                        //                        )
+                    }
+                }
+
+            }
+            is ExplosionResult.UnusedLeftExplosionResult -> {
+                when (left) {
+                    is SnailNumber -> {
+                        ExplosionResult.FinalResultWithExplosion(
+                            SnailPair(
+                                SnailNumber(
+                                    explosionResult.num + left.num
+                                ),
+                                explosionResult.result
+                            )
+                        )
+                    }
+                    is SnailPair -> {
+                        ExplosionResult.FinalResultWithExplosion(
+                            SnailPair(
+                                left.addToRightMostNumber(explosionResult.num),
+                                explosionResult.result
+                            )
+                        )
+                    }
+                }
+            }
+            is ExplosionResult.UnusedRightExplosionResult -> {
+                if (depth == 0) {
+                    ExplosionResult.FinalResultWithExplosion(
+                        SnailPair(left, explosionResult.result)
+                    )
+                } else {
+                    ExplosionResult.UnusedRightExplosionResult(
+                        explosionResult.num,
+                        SnailPair(left, explosionResult.result)
+                    )
+                }
+            }
+            is ExplosionResult.FinalResultNoExplosion -> {
+                ExplosionResult.FinalResultNoExplosion(
+                    SnailPair(left, explosionResult.result)
+                )
+            }
+        }
     }
 
     override fun print(tab: Int) {
@@ -222,21 +352,28 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
 
     override fun split(): SplitResult {
         val leftSplit = left.split()
+        if (leftSplit.splitOccurred) {
+            return SplitResult(
+                true,
+                SnailPair(
+                    leftSplit.result,
+                    right
+                )
+            )
+        }
         val rightSplit = right.split()
-        val splitOccurred = leftSplit.splitOccurred || rightSplit.splitOccurred
         return SplitResult(
-            splitOccurred,
+            rightSplit.splitOccurred,
             SnailPair(
-                leftSplit.result,
+                left,
                 rightSplit.result
             )
         )
     }
 
-    override fun explode(): ExplosionResult.FinalResult {
+    override fun explode(): ExplosionResult {
         val result = explodeInternal(0)
-        require(result is ExplosionResult.FinalResult)
-        return result as ExplosionResult.FinalResult
+        return result
     }
 
     override fun plus(other: SnailNode): SnailNode {
@@ -326,7 +463,7 @@ fun main() {
 
         val root =
             inputs.map { parseSnailNode(it) }.reduce { acc: SnailNode, snailNode: SnailNode ->
-                acc + snailNode
+                (acc + snailNode).reduce()
             }
 
         println(
@@ -338,42 +475,11 @@ fun main() {
         println("Initial root:")
         root.print()
 
-        var result = root
-
-        println("result 1")
-        result = result.explode().result
-        result.print()
-
-        println("result 2")
-        val explodResult = result.explode()
-        println(explodResult)
-        result = explodResult.result
-        result.print()
-
-        //        while (true) {
-        //            generateSequence { result.explode(0) .take}
-        //            var explosionResult = result.explode(0)
-        //            while (explosionResult.explosionOcurred) {
-        //                explosionResult = explosionResult.result.explode(0)
-        //            }
-        //
-        //            val splitResult = explosionResult.result.split()
-        //
-        //            println(
-        //                """
-        //                explosionResult: $explosionResult,
-        //                splitResult: $splitResult
-        //            """.trimIndent()
-        //            )
-        //
-        //            result = splitResult.result
-        //            if (!splitResult.splitOccurred) {
-        //                break
-        //            }
-        //        }
-        //        //
-        //        println("result")
-        //        result.print()
+        println(
+            """
+            magnitude: ${root.calculateMagnitude()}
+        """.trimIndent()
+        )
     }
 
     fun part2(inputs: List<String>) {
