@@ -5,7 +5,7 @@ data class SplitResult(val splitOccurred: Boolean, val result: SnailNode)
 sealed interface SnailNode {
     fun print(tab: Int = 0)
     fun split(): SplitResult
-    fun explode(depth: Int): ExplosionResult.FinalResult
+    fun explode(): ExplosionResult.FinalResult
     fun explodeInternal(depth: Int): ExplosionResult
     operator fun plus(other: SnailNode): SnailNode
 }
@@ -59,8 +59,8 @@ data class SnailNumber(val num: Long) : ParsingNode(), SnailNode {
         else SplitResult(false, this)
     }
 
-    override fun explode(depth: Int): ExplosionResult.FinalResult {
-        return explodeInternal(depth) as ExplosionResult.FinalResult
+    override fun explode(): ExplosionResult.FinalResult {
+        return explodeInternal(0) as ExplosionResult.FinalResult
     }
 
     override fun explodeInternal(depth: Int): ExplosionResult {
@@ -89,7 +89,7 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
 
     override fun explodeInternal(depth: Int): ExplosionResult {
         if (left is SnailNumber && right is SnailNumber) {
-            if (depth >= 3) {
+            if (depth >= 4) {
                 return ExplosionResult.UnusedFullExplosionResult(
                     left.num,
                     right.num,
@@ -233,8 +233,8 @@ data class SnailPair(val left: SnailNode, val right: SnailNode) : ParsingNode(),
         )
     }
 
-    override fun explode(depth: Int): ExplosionResult.FinalResult {
-        val result = explodeInternal(depth)
+    override fun explode(): ExplosionResult.FinalResult {
+        val result = explodeInternal(0)
         require(result is ExplosionResult.FinalResult)
         return result as ExplosionResult.FinalResult
     }
@@ -340,26 +340,40 @@ fun main() {
 
         var result = root
 
-
-        while (true) {
-            val explosionResult = result.explode(0)
-            val splitResult = explosionResult.result.split()
-
-            println(
-                """
-                explosionResult: $explosionResult,
-                splitResult: $splitResult
-            """.trimIndent()
-            )
-
-            result = splitResult.result
-            if (!explosionResult.explosionOcurred && !splitResult.splitOccurred) {
-                break
-            }
-        }
-        //
-        println("result")
+        println("result 1")
+        result = result.explode().result
         result.print()
+
+        println("result 2")
+        val explodResult = result.explode()
+        println(explodResult)
+        result = explodResult.result
+        result.print()
+
+        //        while (true) {
+        //            generateSequence { result.explode(0) .take}
+        //            var explosionResult = result.explode(0)
+        //            while (explosionResult.explosionOcurred) {
+        //                explosionResult = explosionResult.result.explode(0)
+        //            }
+        //
+        //            val splitResult = explosionResult.result.split()
+        //
+        //            println(
+        //                """
+        //                explosionResult: $explosionResult,
+        //                splitResult: $splitResult
+        //            """.trimIndent()
+        //            )
+        //
+        //            result = splitResult.result
+        //            if (!splitResult.splitOccurred) {
+        //                break
+        //            }
+        //        }
+        //        //
+        //        println("result")
+        //        result.print()
     }
 
     fun part2(inputs: List<String>) {
