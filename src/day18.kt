@@ -1,3 +1,4 @@
+import kotlin.math.max
 import kotlin.math.roundToLong
 
 data class SplitResult(val splitOccurred: Boolean, val result: SnailNode)
@@ -483,7 +484,21 @@ fun main() {
     }
 
     fun part2(inputs: List<String>) {
+        val root = inputs.map { parseSnailNode(it) }
 
+        var maxMagnitude = Long.MIN_VALUE
+        for (r1 in root) {
+            for (r2 in root) {
+                val reduced = (r1.reduce() + r2.reduce()).reduce()
+                maxMagnitude = max(maxMagnitude, reduced.calculateMagnitude())
+            }
+        }
+
+        println(
+            """
+            maxMagnitude: $maxMagnitude
+        """.trimIndent()
+        )
     }
 
     val testInput = readInput("day18_test")
@@ -495,11 +510,11 @@ fun main() {
     println((num / 2).toLong())
     println((num / 2.0).roundToLong())
 
-    part1(testInput)
+    //    part1(testInput)
     //        part1(mainInput)
     //
-    //    part2(testInput)
-    //    part2(mainInput)
+    part2(testInput)
+    //        part2(mainInput)
 }
 
 
