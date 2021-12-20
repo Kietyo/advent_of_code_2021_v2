@@ -190,8 +190,6 @@ data class ScannerData(
             }
         }
 
-
-
         this.allUniqueOrientations = orientedPointsList
         this.orientationConfigs = orientationConfigs
 
@@ -238,34 +236,6 @@ data class ScannerData(
         return null
     }
 
-    // scannerIdCoord: The id of the scanner coordinate to use when translating
-    fun getOverlappingUsingMap(
-        other: ScannerData, translations: List<TranslationConfig>,
-        scannerIdCoord: Int
-    ): Set<Vector3D> {
-        val translatedPoints = if (id == scannerIdCoord) {
-            initialOrientation
-        } else {
-            val translation = translations.first {
-                it.sourceScannerId == id && it.destScannerId == scannerIdCoord
-            }
-            translation.translate(initialOrientation)
-        }
-
-        val translatedOtherPoints = if (other.id == scannerIdCoord) {
-            initialOrientation
-        } else {
-            val translation = translations.first {
-                it.sourceScannerId == other.id && it.destScannerId == scannerIdCoord
-            }
-            translation.translate(other.initialOrientation)
-        }
-
-        return translatedPoints.toSet().intersect(
-            translatedOtherPoints.toSet()
-        )
-    }
-
     fun getTranslatedPoints(
         translations: List<TranslationConfig>,
         destScannerId: Int
@@ -301,7 +271,7 @@ fun main() {
     }
 
     fun part1(inputs: List<String>) {
-        val scannerData = buildList<ScannerData> {
+        val scannerData = buildList {
             val itr = inputs.iterator()
             var scannerIdx = -1
             while (itr.hasNext()) {
@@ -321,21 +291,7 @@ fun main() {
             }
         }
 
-        //                val scanner1 = scannerData[0]
-        //                val scanner4 = scannerData[2]
-        //
-        //                scanner4.getOverlapping(scanner1)!!.getOverlappingPointsRelativeToScanner1()
-        //                    .forEach {
-        //                    println(it)
-        //                }
-        //
-        //                println(scannerData.joinToString("\n") { scannerData ->
-        //                    "Scanner Data ${scannerData.id}:\n" + scannerData.points.joinToString("\n") {
-        //                        "\t${it}"
-        //                    }
-        //                })
-
-        var overlappingResults = buildList<OverlappingResults> {
+        val overlappingResults = buildList {
             for (scanner1 in scannerData) {
                 for (scanner2 in scannerData) {
                     if (scanner1 === scanner2) {
@@ -354,8 +310,6 @@ fun main() {
                     "${it.orientationIdxForScanner2} offsets: ${it.offsets}"
         })
 
-        val firstResult = overlappingResults.first()
-
         val translationConfigs = mutableListOf<TranslationConfig>()
         val coveredTranslations = mutableSetOf<Pair<Int, Int>>()
         for (result in overlappingResults) {
@@ -367,39 +321,12 @@ fun main() {
                     currentTranslationConfig.destScannerId
                 )
             )
-
-            //            translationConfigs.filter {
-            //                it.destScannerId == currentTranslationConfig.sourceScannerId
-            //                        && it.sourceScannerId != currentTranslationConfig.destScannerId
-            //                        && !coveredTranslations.contains(
-            //                    Pair(
-            //                        it.sourceScannerId,
-            //                        currentTranslationConfig.destScannerId
-            //                    )
-            //                )
-            //            }.forEach {
-            //                val newConfig = it.combine(currentTranslationConfig)
-            //                translationConfigs.add(
-            //                    newConfig
-            //                )
-            //                coveredTranslations.add(Pair(newConfig.sourceScannerId, newConfig.destScannerId))
-            //            }
-            //
-            //            translationConfigs.filter {
-            //                currentTranslationConfig.destScannerId == it.sourceScannerId
-            //                        && currentTranslationConfig.sourceScannerId != it.destScannerId &&
-            //
-            //            }.forEach {
-            //                val newConfig = currentTranslationConfig.combine(it)
-            //                translationConfigs.add(
-            //                    newConfig
-            //                )
-            //                coveredTranslations.add(Pair(newConfig.sourceScannerId, newConfig.destScannerId))
-            //            }
         }
 
+        // Really inefficient and lazy way to get all the translations from
+        // source scanners to dest scanners
         while (true) {
-            var currrentSize = coveredTranslations.size
+            val currentSize = coveredTranslations.size
             for (config1 in translationConfigs.toList()) {
                 for (config2 in translationConfigs.toList()) {
                     if (config1.destScannerId == config2.sourceScannerId &&
@@ -420,7 +347,7 @@ fun main() {
                 }
             }
             var newSize = coveredTranslations.size
-            if (currrentSize == newSize) {
+            if (currentSize == newSize) {
                 // No more changes!
                 break
             }
@@ -433,41 +360,14 @@ fun main() {
                 .second
         }).joinToString("\n"))
 
-
-        val overlappingPointsInScannerZeroConfig = overlappingResults.flatMap { result ->
-            val overlappingPoints = result.getOverlappingPointsRelativeToDestination()
-            if (result.destinationScanner.id == 0) {
-                overlappingPoints
-            } else {
-                val translation = translationConfigs.first {
-                    it.sourceScannerId == result.destinationScanner.id &&
-                            it.destScannerId == 0
-                }
-                translation.translate(overlappingPoints)
+        var allBeaconPointsInScannerZeroCoords = buildSet<Vector3D> {
+            scannerData.forEach {
+                addAll(it.getTranslatedPoints(translationConfigs, 0))
             }
-        }.toSet()
-
-        println(overlappingPointsInScannerZeroConfig)
-
-        println(overlappingPointsInScannerZeroConfig.size)
-
-        var results2 = mutableSetOf<Vector3D>()
-
-        for (scanner1 in scannerData) {
-            val translated = scanner1.getTranslatedPoints(translationConfigs, 0)
-            results2.addAll(translated)
         }
 
-        println("results2: $results2")
-        println(results2.size)
-
-        val scanner2 = scannerData[2]
-        println("scanner2")
-        println(scanner2.getTranslatedScannerPoint(translationConfigs, 0))
-
-        val scanner3 = scannerData[3]
-        println("scanner3")
-        println(scanner3.getTranslatedScannerPoint(translationConfigs, 0))
+        println("beaconPointsInScannerZeroCoords: $allBeaconPointsInScannerZeroCoords")
+        println(allBeaconPointsInScannerZeroCoords.size)
 
         var largestManhattanDistance = Int.MIN_VALUE
         for (scanner1 in scannerData) {
@@ -485,23 +385,6 @@ fun main() {
         }
 
         println("largestManhattanDistance: $largestManhattanDistance")
-
-
-        //        val firstScanner = scannerData[0]
-        //        val secondScanner = scannerData[1]
-        //
-        //        val overlapping = firstScanner.getOverlapping(secondScanner)
-        //
-        //        println(
-        //            """
-        //            overlapping: $overlapping
-        //        """.trimIndent()
-        //        )
-        //        println()
-        //
-        //        println("overlapping points")
-        //        println(overlapping.getOverlappingPointsRelativeToScanner1().joinToString("\n"))
-
     }
 
     fun part2(inputs: List<String>) {
