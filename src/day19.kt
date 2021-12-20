@@ -50,14 +50,14 @@ fun <E1, E2> Iterable<E1>.cross(list2: Iterable<E2>): List<Pair<E1, E2>> {
 data class OverlappingResults(
     val destinationScanner: ScannerData,
     val sourceScanner: ScannerData,
-    // The orientation in scanner 2 that resulted in overlaps with scanner 2
-    val orientationIdxForScanner2: Int,
-    // Corresponds to the offsets which resulted in the most amount of point overlaps between
-    // scanner 1 and scanner 2
+    // The orientation used in the source scanner which resulted in the destination scanner.
+    val orientationIdxUsedForSource: Int,
+    // Corresponds to the offsets used to translate the source points to the destination points
+    // which resulted in at least 12 point overlaps.
     val offsets: Triple<Int, Int, Int>,
 ) {
     // The orientation config to translate scanner 2 to scanner 1 coordinates
-    val orientationConfig = sourceScanner.orientationConfigs[orientationIdxForScanner2]
+    val orientationConfig = sourceScanner.orientationConfigs[orientationIdxUsedForSource]
     val translationConfig = TranslationConfig(
         sourceScanner.id,
         destinationScanner.id,
@@ -71,7 +71,7 @@ data class OverlappingResults(
 
     fun getOverlappingPointsRelativeToDestination(): List<Vector3D> {
         return destinationScanner.initialOrientation.intersect(
-            sourceScanner.allUniqueOrientations[orientationIdxForScanner2].map {
+            sourceScanner.allUniqueOrientations[orientationIdxUsedForSource].map {
                 Vector3D(
                     it.x + offsets.first,
                     it.y + offsets.second,
@@ -307,7 +307,7 @@ fun main() {
 
         println(overlappingResults.joinToString("\n") {
             "${it.sourceScanner.id} to ${it.destinationScanner.id}, orientationIdxForScanner2: " +
-                    "${it.orientationIdxForScanner2} offsets: ${it.offsets}"
+                    "${it.orientationIdxUsedForSource} offsets: ${it.offsets}"
         })
 
         val translationConfigs = mutableListOf<TranslationConfig>()
