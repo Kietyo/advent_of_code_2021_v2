@@ -1,3 +1,6 @@
+import kotlin.math.abs
+import kotlin.math.max
+
 data class Vector3D(val x: Int, val y: Int, val z: Int) {
     // Rotate 90 degrees (counter clockwise) around the z axis.
     fun rotateAroundZAxis() = Vector3D(y, -x, z)
@@ -275,6 +278,18 @@ data class ScannerData(
             it.sourceScannerId == id && it.destScannerId == destScannerId
         }.translate(initialOrientation)
     }
+
+    fun getTranslatedScannerPoint(
+        translations: List<TranslationConfig>,
+        destScannerId: Int
+    ): Vector3D {
+        if (id == destScannerId) {
+            return Vector3D(0, 0, 0)
+        }
+        return translations.first {
+            it.sourceScannerId == id && it.destScannerId == destScannerId
+        }.translate(listOf(Vector3D(0, 0, 0))).first()
+    }
 }
 
 fun main() {
@@ -439,19 +454,37 @@ fun main() {
         var results2 = mutableSetOf<Vector3D>()
 
         for (scanner1 in scannerData) {
-            val translated = if (scanner1.id == 0) {
-                scanner1.initialOrientation
-            } else {
-                val translation = translationConfigs.first {
-                    it.sourceScannerId == scanner1.id && it.destScannerId == 0
-                }
-                translation.translate(scanner1.initialOrientation)
-            }
+            val translated = scanner1.getTranslatedPoints(translationConfigs, 0)
             results2.addAll(translated)
         }
 
         println("results2: $results2")
         println(results2.size)
+
+        val scanner2 = scannerData[2]
+        println("scanner2")
+        println(scanner2.getTranslatedScannerPoint(translationConfigs, 0))
+
+        val scanner3 = scannerData[3]
+        println("scanner3")
+        println(scanner3.getTranslatedScannerPoint(translationConfigs, 0))
+
+        var largestManhattanDistance = Int.MIN_VALUE
+        for (scanner1 in scannerData) {
+            val translated1 = scanner1.getTranslatedScannerPoint(translationConfigs, 0)
+
+            for (scanner2 in scannerData) {
+                val translated2 = scanner2.getTranslatedScannerPoint(translationConfigs, 0)
+
+                val curr =
+                    abs(translated2.x - translated1.x) +
+                            abs(translated2.y - translated1.y) +
+                            abs(translated2.z - translated1.z)
+                largestManhattanDistance = max(largestManhattanDistance, curr)
+            }
+        }
+
+        println("largestManhattanDistance: $largestManhattanDistance")
 
 
         //        val firstScanner = scannerData[0]
