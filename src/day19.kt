@@ -101,6 +101,14 @@ data class TranslationConfig(
         require(sourceScannerId != destScannerId)
     }
 
+    fun translate(scannerData: ScannerData): List<Vector3D> {
+        if (scannerData.id == destScannerId) {
+            return scannerData.initialOrientation
+        }
+        require(scannerData.id == sourceScannerId)
+        return translate(scannerData.initialOrientation)
+    }
+
     fun translate(scanner2Points: List<Vector3D>): List<Vector3D> {
         return scanner2Points.map {
             orientationConfigs.zip(offsets).fold(it) { acc, pair ->
@@ -131,7 +139,7 @@ data class TranslationConfig(
 
 data class ScannerData(
     val id: Int,
-    val points: Set<Vector3D>
+    val points: List<Vector3D>
 ) {
     val initialOrientation = points
     val allUniqueOrientations: List<List<Vector3D>>
@@ -224,8 +232,48 @@ data class ScannerData(
                 )
             }
         }
-
         return null
+    }
+
+    // scannerIdCoord: The id of the scanner coordinate to use when translating
+    fun getOverlappingUsingMap(
+        other: ScannerData, translations: List<TranslationConfig>,
+        scannerIdCoord: Int
+    ): Set<Vector3D> {
+        val translatedPoints = if (id == scannerIdCoord) {
+            initialOrientation
+        } else {
+            val translation = translations.first {
+                it.sourceScannerId == id && it.destScannerId == scannerIdCoord
+            }
+            translation.translate(initialOrientation)
+        }
+
+        val translatedOtherPoints = if (other.id == scannerIdCoord) {
+            initialOrientation
+        } else {
+            val translation = translations.first {
+                it.sourceScannerId == other.id && it.destScannerId == scannerIdCoord
+            }
+            translation.translate(other.initialOrientation)
+        }
+
+        return translatedPoints.toSet().intersect(
+            translatedOtherPoints.toSet()
+        )
+    }
+
+    fun getTranslatedPoints(
+        translations: List<TranslationConfig>,
+        destScannerId: Int
+    ): List<Vector3D> {
+        if (id == destScannerId) {
+            return initialOrientation
+        }
+
+        return translations.first {
+            it.sourceScannerId == id && it.destScannerId == destScannerId
+        }.translate(initialOrientation)
     }
 }
 
@@ -253,7 +301,7 @@ fun main() {
                         }
                         points.add(dataInput.toVector3D())
                     }
-                    add(ScannerData(scannerIdx, points.toSet()))
+                    add(ScannerData(scannerIdx, points.toSet().toList()))
                 }
             }
         }
@@ -272,16 +320,16 @@ fun main() {
         //                    }
         //                })
 
-        var overlappingResults = mutableListOf<OverlappingResults>()
-
-        for (scanner1 in scannerData) {
-            for (scanner2 in scannerData) {
-                if (scanner1 === scanner2) {
-                    continue
-                }
-                val overlapping = scanner1.getOverlapping(scanner2)
-                if (overlapping != null) {
-                    overlappingResults.add(overlapping)
+        var overlappingResults = buildList<OverlappingResults> {
+            for (scanner1 in scannerData) {
+                for (scanner2 in scannerData) {
+                    if (scanner1 === scanner2) {
+                        continue
+                    }
+                    val overlapping = scanner1.getOverlapping(scanner2)
+                    if (overlapping != null) {
+                        add(overlapping)
+                    }
                 }
             }
         }
@@ -388,6 +436,23 @@ fun main() {
 
         println(overlappingPointsInScannerZeroConfig.size)
 
+        var results2 = mutableSetOf<Vector3D>()
+
+        for (scanner1 in scannerData) {
+            val translated = if (scanner1.id == 0) {
+                scanner1.initialOrientation
+            } else {
+                val translation = translationConfigs.first {
+                    it.sourceScannerId == scanner1.id && it.destScannerId == 0
+                }
+                translation.translate(scanner1.initialOrientation)
+            }
+            results2.addAll(translated)
+        }
+
+        println("results2: $results2")
+        println(results2.size)
+
 
         //        val firstScanner = scannerData[0]
         //        val secondScanner = scannerData[1]
@@ -414,8 +479,8 @@ fun main() {
     val mainInput = readInput("day19")
 
 
-    part1(testInput)
-    //    part1(mainInput)
+    //    part1(testInput)
+    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
