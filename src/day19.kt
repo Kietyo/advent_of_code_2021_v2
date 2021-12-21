@@ -2,14 +2,14 @@ import kotlin.math.abs
 import kotlin.math.max
 
 data class Vector3D(val x: Int, val y: Int, val z: Int) {
-    // Rotate 90 degrees (counter clockwise) around the z axis.
-    fun rotateAroundZAxis() = Vector3D(y, -x, z)
+    // Rotate 90 degrees (counter clockwise) around the x axis.
+    fun rotateAroundXAxis() = Vector3D(x, z, -y)
 
     // Rotate 90 degrees (counter clockwise) around the y axis.
     fun rotateAroundYAxis() = Vector3D(z, y, -x)
 
-    // Rotate 90 degrees (counter clockwise) around the y axis.
-    fun rotateAroundXAxis() = Vector3D(x, z, -y)
+    // Rotate 90 degrees (counter clockwise) around the z axis.
+    fun rotateAroundZAxis() = Vector3D(y, -x, z)
 
     fun flipX() = Vector3D(-x, y, z)
     fun flipY() = Vector3D(x, -y, z)
