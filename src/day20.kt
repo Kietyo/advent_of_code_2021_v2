@@ -1,12 +1,13 @@
 import kotlin.math.max
 
 data class Grid(
-    var defaultGridValue: Boolean,
+    var inactiveGridValue: Boolean,
     val algo: BooleanArray,
-    // Only contains "active" points
+    // Only contains "active" points.
+    // Note that active != lit.
+    // For example if the "inactive grid value" was true, then the "active" value would be false.
     val activePoints: MutableSet<Pair<Long, Long>> = mutableSetOf(),
-
-    ) {
+) {
     init {
         require(algo.size == 512)
     }
@@ -27,8 +28,9 @@ data class Grid(
 
     fun set(x: Long, y: Long, b: Boolean) {
         val newPoint = Pair(x, y)
-        if (defaultGridValue == b) {
-            activePoints.remove(newPoint)
+        if (inactiveGridValue == b) {
+            require(!activePoints.contains(newPoint))
+            return
         } else {
             activePoints.add(newPoint)
         }
@@ -37,14 +39,14 @@ data class Grid(
     fun get(x: Long, y: Long): Boolean {
         val pair = Pair(x, y)
         if (activePoints.contains(pair)) {
-            return !defaultGridValue
+            return !inactiveGridValue
         }
-        return defaultGridValue
+        return inactiveGridValue
     }
 
     private fun copy(): Grid {
         return Grid(
-            defaultGridValue,
+            inactiveGridValue,
             algo,
             activePoints.toMutableSet(),
         )
@@ -58,22 +60,24 @@ data class Grid(
                 sb.append(if (b) '1' else '0')
             }
         }
-        return sb.toString()
+        val str = sb.toString()
+        require(str.length == 9)
+        return str
     }
 
-    private fun getWindowDecimal(x: Long, y: Long): Int {
+    private fun getWindowInt(x: Long, y: Long): Int {
         return getWindowString(x, y).toInt(2)
     }
 
     fun getUpdateValue(x: Long, y: Long): Boolean {
-        val windowInt = getWindowDecimal(x, y)
+        val windowInt = getWindowInt(x, y)
         return algo[windowInt]
     }
 
     fun update() {
         val originalCopy = this.copy()
         if (isTransitioningGrid) {
-            defaultGridValue = !defaultGridValue
+            inactiveGridValue = !inactiveGridValue
         }
         activePoints.clear()
         for (affectedPoint in originalCopy.activePoints) {
@@ -81,7 +85,6 @@ data class Grid(
                 for (xOffset in -1..1) {
                     val currX = affectedPoint.first + xOffset
                     val currY = affectedPoint.second + yOffset
-                    //                    println("\t($currX, $currY)")
                     val updateValue = originalCopy.getUpdateValue(currX, currY)
                     set(currX, currY, updateValue)
                 }
@@ -91,7 +94,7 @@ data class Grid(
 
     val numLit: Int
         get() = run {
-            if (isTransitioningGrid && defaultGridValue) {
+            if (isTransitioningGrid && inactiveGridValue) {
                 return Int.MAX_VALUE
             }
             activePoints.size
@@ -100,10 +103,10 @@ data class Grid(
     fun boardString(): String {
         val sb = StringBuilder()
         val yGridLength = max(minAffectedY.toString().length, maxAffectedY.toString().length)
-        for (y in (minAffectedY - 5)..(maxAffectedY + 5)) {
+        for (y in (minAffectedY - 3)..(maxAffectedY + 3)) {
             val gridNumberStr = y.toString().padStart(yGridLength)
             sb.append("$gridNumberStr: ")
-            for (x in (minAffectedX - 5)..(maxAffectedX + 5)) {
+            for (x in (minAffectedX - 3)..(maxAffectedX + 3)) {
                 sb.append(if (get(x, y)) '#' else '.')
             }
             sb.appendLine()
@@ -112,21 +115,12 @@ data class Grid(
     }
 
     fun print() {
-
-        //        numLit: 19949
-        //        range1: 6135
-        //        range2: 7309
-
-        //        val range1 = getNumLitWithinRange(-5..105, -5..105)
-        //        val range2 = getNumLitWithinRange(-10..110, -10..110)
-
-
         println(
             """
             minAffectedX: $minAffectedX, maxX: $maxAffectedX
             minAffectedY: $minAffectedY, maxY: $maxAffectedY
             isTransitioningGrid: $isTransitioningGrid
-            defaultGridValue: $defaultGridValue
+            defaultGridValue: $inactiveGridValue
             numLit: $numLit
         """.trimIndent()
         )
@@ -148,7 +142,6 @@ fun main() {
         while (itr.hasNext()) {
             val currLine = itr.next()
             currLine.forEachIndexed { index, c -> grid.set(index.toLong(), y, c == '#') }
-            println("$y: $currLine")
             y++
         }
 
@@ -166,7 +159,7 @@ fun main() {
         println("original grid")
         grid.print()
 
-        repeat(50) {
+        repeat(2) {
             grid.update()
             grid.print()
         }
@@ -183,8 +176,10 @@ fun main() {
     val testInput = readInput("day20_test")
     val mainInput = readInput("day20")
 
-    part1(testInput)
-    //        part1(mainInput)
+    //    println("000100010".toInt(2))
+
+    //    part1(testInput)
+    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
