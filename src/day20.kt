@@ -1,53 +1,52 @@
-import java.io.File
 import kotlin.math.max
-import kotlin.math.min
 
 data class Grid(
+    var defaultGridValue: Boolean,
     val algo: BooleanArray,
-    val data: MutableMap<Long, MutableMap<Long, Boolean>> = mutableMapOf(),
-    var minAffectedX: Long = Long.MAX_VALUE,
-    var maxAffectedX: Long = Long.MIN_VALUE,
-    var minAffectedY: Long = Long.MAX_VALUE,
-    var maxAffectedY: Long = Long.MIN_VALUE,
-) {
+    // Only contains "active" points
+    val activePoints: MutableSet<Pair<Long, Long>> = mutableSetOf(),
+
+    ) {
     init {
         require(algo.size == 512)
     }
 
+    val minAffectedX: Long
+        get() = activePoints.minOf { it.first }
+
+    val maxAffectedX: Long
+        get() = activePoints.maxOf { it.first }
+
+    val minAffectedY: Long
+        get() = activePoints.minOf { it.second }
+
+    val maxAffectedY: Long
+        get() = activePoints.maxOf { it.second }
+
     val isTransitioningGrid = algo[0] && !algo[511]
-    var defaultGridValue = false
 
     fun set(x: Long, y: Long, b: Boolean) {
-        minAffectedX = min(minAffectedX, x)
-        maxAffectedX = max(maxAffectedX, x)
-        minAffectedY = min(minAffectedY, y)
-        maxAffectedY = max(maxAffectedY, y)
-        data.getOrPut(y) { mutableMapOf() }[x] = b
+        val newPoint = Pair(x, y)
+        if (defaultGridValue == b) {
+            activePoints.remove(newPoint)
+        } else {
+            activePoints.add(newPoint)
+        }
     }
 
     fun get(x: Long, y: Long): Boolean {
-        if (x !in minAffectedX..maxAffectedX) {
-            return defaultGridValue
+        val pair = Pair(x, y)
+        if (activePoints.contains(pair)) {
+            return !defaultGridValue
         }
-        if (y !in minAffectedY..maxAffectedY) {
-            return defaultGridValue
-        }
-        return data[y]?.get(x) ?: defaultGridValue
+        return defaultGridValue
     }
 
     private fun copy(): Grid {
-        val copiedData = mutableMapOf<Long, MutableMap<Long, Boolean>>()
-        for (e1 in data.entries) {
-            val xMap = copiedData.getOrPut(e1.key) { mutableMapOf() }
-            xMap.putAll(e1.value)
-        }
         return Grid(
+            defaultGridValue,
             algo,
-            copiedData,
-            minAffectedX,
-            maxAffectedX,
-            minAffectedY,
-            maxAffectedY
+            activePoints.toMutableSet(),
         )
     }
 
@@ -73,14 +72,21 @@ data class Grid(
 
     fun update() {
         val originalCopy = this.copy()
-        for (y in (minAffectedY - 1)..(maxAffectedY + 1)) {
-            for (x in (minAffectedX - 1)..(maxAffectedX + 1)) {
-                val updatedValue = originalCopy.getUpdateValue(x, y)
-                set(x, y, updatedValue)
+        if (isTransitioningGrid) {
+            defaultGridValue = !defaultGridValue
+        }
+        activePoints.clear()
+        for (affectedPoint in originalCopy.activePoints) {
+            for (yOffset in -1..1) {
+                for (xOffset in -1..1) {
+                    val currX = affectedPoint.first + xOffset
+                    val currY = affectedPoint.second + yOffset
+                    //                    println("\t($currX, $currY)")
+                    val updateValue = originalCopy.getUpdateValue(currX, currY)
+                    set(currX, currY, updateValue)
+                }
             }
         }
-
-        defaultGridValue = !defaultGridValue
     }
 
     val numLit: Int
@@ -88,36 +94,16 @@ data class Grid(
             if (isTransitioningGrid && defaultGridValue) {
                 return Int.MAX_VALUE
             }
-            var sum = 0
-            for (y in minAffectedY..maxAffectedY) {
-                for (x in minAffectedX..maxAffectedX) {
-                    if (get(x, y)) {
-                        sum++
-                    }
-                }
-            }
-            return sum
+            activePoints.size
         }
-
-    fun getNumLitWithinRange(xRange: IntRange, yRange: IntRange): Int {
-        var sum = 0
-        for (y in yRange) {
-            for (x in xRange) {
-                if (get(x.toLong(), y.toLong())) {
-                    sum++
-                }
-            }
-        }
-        return sum
-    }
 
     fun boardString(): String {
         val sb = StringBuilder()
         val yGridLength = max(minAffectedY.toString().length, maxAffectedY.toString().length)
-        for (y in minAffectedY..maxAffectedY) {
+        for (y in (minAffectedY - 5)..(maxAffectedY + 5)) {
             val gridNumberStr = y.toString().padStart(yGridLength)
             sb.append("$gridNumberStr: ")
-            for (x in minAffectedX..maxAffectedX) {
+            for (x in (minAffectedX - 5)..(maxAffectedX + 5)) {
                 sb.append(if (get(x, y)) '#' else '.')
             }
             sb.appendLine()
@@ -134,10 +120,6 @@ data class Grid(
         //        val range1 = getNumLitWithinRange(-5..105, -5..105)
         //        val range2 = getNumLitWithinRange(-10..110, -10..110)
 
-        val range = numLit
-        val range1 = null
-        val range2 = null
-
 
         println(
             """
@@ -146,9 +128,6 @@ data class Grid(
             isTransitioningGrid: $isTransitioningGrid
             defaultGridValue: $defaultGridValue
             numLit: $numLit
-            range: $range
-            range1: $range1
-            range2: $range2
         """.trimIndent()
         )
         println(boardString())
@@ -163,7 +142,7 @@ fun main() {
         itr.next()
         itr.next()
 
-        val grid = Grid(algo)
+        val grid = Grid(false, algo)
 
         var y = 0L
         while (itr.hasNext()) {
@@ -187,17 +166,10 @@ fun main() {
         println("original grid")
         grid.print()
 
-        grid.update()
-        grid.print()
-
-
-        grid.update()
-        grid.print()
-
-
-        val boardString = grid.boardString()
-
-        println(boardString)
+        repeat(50) {
+            grid.update()
+            grid.print()
+        }
 
         //        File("day20_out.txt").printWriter().use {
         //            it.println(boardString)
@@ -212,7 +184,7 @@ fun main() {
     val mainInput = readInput("day20")
 
     part1(testInput)
-    //    part1(mainInput)
+    //        part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
