@@ -3,35 +3,36 @@ import kotlin.math.max
 import kotlin.math.min
 
 data class Grid(
+    val algo: BooleanArray,
     val data: MutableMap<Long, MutableMap<Long, Boolean>> = mutableMapOf(),
-    var cachedMinX: Long = Long.MAX_VALUE,
-    var cachedMaxX: Long = Long.MIN_VALUE,
-    var cachedMinY: Long = Long.MAX_VALUE,
-    var cachedMaxY: Long = Long.MIN_VALUE
-
+    var minAffectedX: Long = Long.MAX_VALUE,
+    var maxAffectedX: Long = Long.MIN_VALUE,
+    var minAffectedY: Long = Long.MAX_VALUE,
+    var maxAffectedY: Long = Long.MIN_VALUE,
 ) {
-    val minY: Long
-        get() = cachedMinY - 10
+    init {
+        require(algo.size == 512)
+    }
 
-    val maxY: Long
-        get() = cachedMaxY + 10
-
-    val minX: Long
-        get() = cachedMinX - 10
-
-    val maxX: Long
-        get() = cachedMaxX + 10
+    val isTransitioningGrid = algo[0] && !algo[511]
+    var defaultGridValue = false
 
     fun set(x: Long, y: Long, b: Boolean) {
-        cachedMinY = min(cachedMinY, y)
-        cachedMaxY = max(cachedMaxY, y)
-        cachedMinX = min(cachedMinX, x)
-        cachedMaxX = max(cachedMaxX, x)
+        minAffectedX = min(minAffectedX, x)
+        maxAffectedX = max(maxAffectedX, x)
+        minAffectedY = min(minAffectedY, y)
+        maxAffectedY = max(maxAffectedY, y)
         data.getOrPut(y) { mutableMapOf() }[x] = b
     }
 
     fun get(x: Long, y: Long): Boolean {
-        return data[y]?.get(x) ?: false
+        if (x !in minAffectedX..maxAffectedX) {
+            return defaultGridValue
+        }
+        if (y !in minAffectedY..maxAffectedY) {
+            return defaultGridValue
+        }
+        return data[y]?.get(x) ?: defaultGridValue
     }
 
     private fun copy(): Grid {
@@ -41,11 +42,12 @@ data class Grid(
             xMap.putAll(e1.value)
         }
         return Grid(
+            algo,
             copiedData,
-            cachedMinX,
-            cachedMaxX,
-            cachedMinY,
-            cachedMaxY
+            minAffectedX,
+            maxAffectedX,
+            minAffectedY,
+            maxAffectedY
         )
     }
 
@@ -60,54 +62,41 @@ data class Grid(
         return sb.toString()
     }
 
-    fun getWindowDecimal(x: Long, y: Long): Int {
+    private fun getWindowDecimal(x: Long, y: Long): Int {
         return getWindowString(x, y).toInt(2)
     }
 
-    fun getUpdateValue(algo: BooleanArray, x: Long, y: Long): Boolean {
+    fun getUpdateValue(x: Long, y: Long): Boolean {
         val windowInt = getWindowDecimal(x, y)
         return algo[windowInt]
     }
 
-    fun getUpdateValue(algo: BooleanArray, x: Long, y: Long, nTimes: Int): Boolean {
-        val gridCopy = this.copy()
-        repeat(nTimes) {
-            gridCopy.update(algo)
-        }
-        return gridCopy.get(x, y)
-    }
-
-    fun update(algo: BooleanArray) {
+    fun update() {
         val originalCopy = this.copy()
-        for (y in (minY)..(maxY)) {
-            for (x in (minX)..(maxX)) {
-                val updatedValue = originalCopy.getUpdateValue(algo, x, y)
+        for (y in (minAffectedY - 1)..(maxAffectedY + 1)) {
+            for (x in (minAffectedX - 1)..(maxAffectedX + 1)) {
+                val updatedValue = originalCopy.getUpdateValue(x, y)
                 set(x, y, updatedValue)
             }
         }
-    }
 
-    fun update(algo: BooleanArray, nTimes: Int) {
-        val copy = this.copy()
-        for (y in (minY)..(maxY)) {
-            for (x in (minX)..(maxX)) {
-                val updateValue = copy.getUpdateValue(algo, x, y, nTimes)
-                set(x, y, updateValue)
-            }
-        }
+        defaultGridValue = !defaultGridValue
     }
 
     val numLit: Int
         get() = run {
+            if (isTransitioningGrid && defaultGridValue) {
+                return Int.MAX_VALUE
+            }
             var sum = 0
-            for (y in minY..maxY) {
-                for (x in minY..maxX) {
+            for (y in minAffectedY..maxAffectedY) {
+                for (x in minAffectedX..maxAffectedX) {
                     if (get(x, y)) {
                         sum++
                     }
                 }
             }
-            sum
+            return sum
         }
 
     fun getNumLitWithinRange(xRange: IntRange, yRange: IntRange): Int {
@@ -124,8 +113,11 @@ data class Grid(
 
     fun boardString(): String {
         val sb = StringBuilder()
-        for (y in minY..maxY) {
-            for (x in minY..maxX) {
+        val yGridLength = max(minAffectedY.toString().length, maxAffectedY.toString().length)
+        for (y in minAffectedY..maxAffectedY) {
+            val gridNumberStr = y.toString().padStart(yGridLength)
+            sb.append("$gridNumberStr: ")
+            for (x in minAffectedX..maxAffectedX) {
                 sb.append(if (get(x, y)) '#' else '.')
             }
             sb.appendLine()
@@ -146,16 +138,20 @@ data class Grid(
         val range1 = null
         val range2 = null
 
+
         println(
             """
-            minX: $minX, maxX: $maxX
-            minY: $minY, maxY: $maxY
+            minAffectedX: $minAffectedX, maxX: $maxAffectedX
+            minAffectedY: $minAffectedY, maxY: $maxAffectedY
+            isTransitioningGrid: $isTransitioningGrid
+            defaultGridValue: $defaultGridValue
             numLit: $numLit
             range: $range
             range1: $range1
             range2: $range2
         """.trimIndent()
         )
+        println(boardString())
     }
 }
 
@@ -167,7 +163,7 @@ fun main() {
         itr.next()
         itr.next()
 
-        val grid = Grid()
+        val grid = Grid(algo)
 
         var y = 0L
         while (itr.hasNext()) {
@@ -191,9 +187,13 @@ fun main() {
         println("original grid")
         grid.print()
 
-        grid.update(algo, 2)
-
+        grid.update()
         grid.print()
+
+
+        grid.update()
+        grid.print()
+
 
         val boardString = grid.boardString()
 
@@ -211,8 +211,8 @@ fun main() {
     val testInput = readInput("day20_test")
     val mainInput = readInput("day20")
 
-    //    part1(testInput)
-    part1(mainInput)
+    part1(testInput)
+    //    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
