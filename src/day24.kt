@@ -24,7 +24,13 @@ fun Int.toToken(): Token.Number {
 
 class LongStore(var num: Long)
 
+enum class ConsumeResult {
+    STANDARD,
+    INPUT;
+}
+
 fun main() {
+
 
     class ALU {
         val vars = buildMap<String, LongStore> {
@@ -40,8 +46,46 @@ fun main() {
             }
         }
 
+        fun clone(): ALU {
+            val newAlu = ALU()
+            vars.forEach { (k, v) -> newAlu.get(k.toVarToken()).num = v.num }
+            return newAlu
+        }
+
         fun get(a: Token.Variable): LongStore {
             return vars[a.name]!!
+        }
+
+        fun consume(input: String, inputDigit: Int): ConsumeResult {
+            when {
+                input.startsWith("inp") -> {
+                    val varName = input.last()
+                    this.inp(varName.toToken(), inputDigit)
+                    return ConsumeResult.INPUT
+                }
+                input.startsWith("mul") -> {
+                    val (_, varName, numOrVar) = input.split(" ")
+                    this.mul(varName.toVarToken(), numOrVar.toToken())
+                }
+                input.startsWith("add") -> {
+                    val (_, varName, numOrVar) = input.split(" ")
+                    this.add(varName.toVarToken(), numOrVar.toToken())
+                }
+                input.startsWith("div") -> {
+                    val (_, varName, numOrVar) = input.split(" ")
+                    this.div(varName.toVarToken(), numOrVar.toToken())
+                }
+                input.startsWith("eql") -> {
+                    val (_, varName, numOrVar) = input.split(" ")
+                    this.eql(varName.toVarToken(), numOrVar.toToken())
+                }
+                input.startsWith("mod") -> {
+                    val (_, varName, numOrVar) = input.split(" ")
+                    this.mod(varName.toVarToken(), numOrVar.toToken())
+                }
+                else -> TODO("unsupported operation: $input")
+            }
+            return ConsumeResult.STANDARD
         }
 
         fun inp(a: Token.Variable) {
@@ -101,10 +145,62 @@ fun main() {
 
     fun part1(inputs: List<String>) {
         val highestNumber = 99999996452482
+        val modelNumLength = 14
+        println(highestNumber.toString().length)
         println(inputs)
-        val alu = ALU()
 
+        val digitStack = mutableListOf<Int>()
+        val aluStack = mutableListOf<ALU>()
+        val operationsStack = mutableListOf<List<String>>()
 
+        var alu = ALU()
+        val currOperations = mutableListOf<String>()
+        for (input in inputs) {
+            val result = alu.consume(input, 9)
+            when (result) {
+                ConsumeResult.STANDARD -> {
+                    currOperations.add(input)
+                }
+                ConsumeResult.INPUT -> {
+                    digitStack.add(9)
+                    aluStack.add(alu.clone())
+                    operationsStack.add(currOperations.toList())
+                    currOperations.clear()
+                }
+            }
+        }
+        operationsStack.add(currOperations.toList())
+        operationsStack.removeFirst()
+
+        println(
+            """
+            digitStack (size=${digitStack.size}): $digitStack,
+            aluStack (size=${aluStack.size}): $aluStack,
+            operationsStack (size=${operationsStack.size}): $operationsStack
+            currOperations: $currOperations
+        """.trimIndent()
+        )
+
+        //        while (true) {
+        //            println("curr num: " + digitStack.joinToString(""))
+        //            if (alu.get("z".toVarToken()).num == 0L) break
+        //            val currDigit = digitStack.removeLast()
+        //            if (currDigit == 1) {
+        //
+        //            }
+        //        }
+
+        //        repeat(modelNumLength) {
+        //            digitStack.add(9)
+        //
+        //        }
+        //
+        //        // initialize alu stack
+        //        for (digit in digitStack) {
+        //
+        //        }
+        //
+        //
         for (currNum in highestNumber downTo 0L) {
             alu.reset()
             val asString = currNum.toString()
@@ -115,38 +211,17 @@ fun main() {
                     require(this in 1..9)
                 }
             }.iterator()
+            var currDigit = digitItr.next()
             for (input in inputs) {
-                when {
-                    input.startsWith("inp") -> {
-                        val varName = input.last()
-                        alu.inp(varName.toToken(), digitItr.next())
+                when (alu.consume(input, currDigit)) {
+                    ConsumeResult.STANDARD -> continue
+                    ConsumeResult.INPUT -> {
+                        if (digitItr.hasNext()) {
+                            currDigit = digitItr.next()
+                        }
                     }
-                    input.startsWith("mul") -> {
-                        val (_, varName, numOrVar) = input.split(" ")
-                        alu.mul(varName.toVarToken(), numOrVar.toToken())
-                    }
-                    input.startsWith("add") -> {
-                        val (_, varName, numOrVar) = input.split(" ")
-                        alu.add(varName.toVarToken(), numOrVar.toToken())
-                    }
-                    input.startsWith("div") -> {
-                        val (_, varName, numOrVar) = input.split(" ")
-                        alu.div(varName.toVarToken(), numOrVar.toToken())
-                    }
-                    input.startsWith("eql") -> {
-                        val (_, varName, numOrVar) = input.split(" ")
-                        alu.eql(varName.toVarToken(), numOrVar.toToken())
-                    }
-                    input.startsWith("mod") -> {
-                        val (_, varName, numOrVar) = input.split(" ")
-                        alu.mod(varName.toVarToken(), numOrVar.toToken())
-                    }
-                    else -> TODO("unsupported operation: $input")
                 }
             }
-
-            //            alu.print()
-
             if (alu.get("z".toVarToken()).num == 0L) break
         }
 
