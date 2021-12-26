@@ -172,11 +172,25 @@ class MutableALU {
 
 fun main() {
 
-    fun calculate(idx: Int, prevAlu: ALU, problemContainer: ProblemContainer) {
+    var numNumbersProcessedPerSecond = 0.0
+    var numNumbersProcessed = 0
+    var startTime = System.currentTimeMillis()
+
+    fun calculate(idx: Int, prevAlu: ALU, problemContainer: ProblemContainer, currNum: Long) {
         if (idx == 14) {
+            numNumbersProcessed++
+            val delta = System.currentTimeMillis() - startTime
+            if (delta > 1000) {
+                numNumbersProcessedPerSecond = numNumbersProcessed / delta.toDouble()
+                numNumbersProcessed = 0
+                startTime = System.currentTimeMillis()
+                println("$currNum (qps=$numNumbersProcessedPerSecond)")
+            }
+
             if (prevAlu.get("z".toVarToken()) == 0L) {
                 TODO("z==0: $prevAlu")
             }
+            return
         }
         val inputVar = problemContainer.inputStack[idx]
         val operations = problemContainer.operationsStack[idx]
@@ -188,7 +202,7 @@ fun main() {
                 val result = currALU.consume(it, i)
                 require(result != ConsumeResult.INPUT)
             }
-            calculate(idx + 1, currALU.toALU(), problemContainer)
+            calculate(idx + 1, currALU.toALU(), problemContainer, currNum * 10 + i)
         }
     }
 
@@ -273,7 +287,7 @@ fun main() {
             operationsStack
         )
 
-        calculate(0, ALU(), problemContainer)
+        calculate(0, ALU(), problemContainer, 0L)
 
         //        var numNumbersProcessedPerSecond = 0.0
         //        var numNumbersProcessed = 0
