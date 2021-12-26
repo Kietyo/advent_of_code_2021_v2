@@ -22,13 +22,13 @@ fun Int.toToken(): Token.Number {
     return Token.Number(this)
 }
 
-sealed class ProcessedInput {
-    data class Input(val name: Token.Variable, var digit: Int?) : ProcessedInput()
-    data class Mul(val name: Token.Variable, val token: Token) : ProcessedInput()
-    data class Add(val name: Token.Variable, val token: Token) : ProcessedInput()
-    data class Div(val name: Token.Variable, val token: Token) : ProcessedInput()
-    data class Eql(val name: Token.Variable, val token: Token) : ProcessedInput()
-    data class Mod(val name: Token.Variable, val token: Token) : ProcessedInput()
+sealed class Operations {
+    data class Input(val name: Token.Variable, var digit: Int?) : Operations()
+    data class Mul(val name: Token.Variable, val token: Token) : Operations()
+    data class Add(val name: Token.Variable, val token: Token) : Operations()
+    data class Div(val name: Token.Variable, val token: Token) : Operations()
+    data class Eql(val name: Token.Variable, val token: Token) : Operations()
+    data class Mod(val name: Token.Variable, val token: Token) : Operations()
 }
 
 class LongStore(var num: Long)
@@ -38,102 +38,157 @@ enum class ConsumeResult {
     INPUT;
 }
 
+data class ProblemContainer(
+    // Corresponds to the input variable that the ALU accepts
+    val inputStack: List<Token.Variable>,
+    // Corresponds to the list of operations after accepting the input variable at the
+    // corresponding index.
+    val operationsStack: List<List<Operations>>
+)
+
+data class ALU(
+    private val vars: Map<String, Long> = mapOf(
+        "x" to 0L,
+        "y" to 0L,
+        "z" to 0L,
+        "w" to 0L,
+    )
+) {
+    fun get(a: Token.Variable): Long {
+        return vars[a.name]!!
+    }
+
+    fun toMutableALU(): MutableALU {
+        val alu = MutableALU()
+        vars.forEach { entry ->
+            alu.get(entry.key.toVarToken()).num = entry.value
+        }
+        return alu
+    }
+}
+
+class MutableALU {
+    val vars = buildMap {
+        put("x", LongStore(0L))
+        put("y", LongStore(0L))
+        put("z", LongStore(0L))
+        put("w", LongStore(0L))
+    }
+
+    fun reset() {
+        vars.forEach { key, value ->
+            value.num = 0
+        }
+    }
+
+    fun toALU(): ALU {
+        return ALU(buildMap {
+            vars.forEach { entry ->
+                put(entry.key, entry.value.num)
+            }
+        })
+    }
+
+    fun clone(): MutableALU {
+        val newAlu = MutableALU()
+        vars.forEach { (k, v) -> newAlu.get(k.toVarToken()).num = v.num }
+        return newAlu
+    }
+
+    fun get(a: Token.Variable): LongStore {
+        return vars[a.name]!!
+    }
+
+    fun consume(input: Operations, inputDigit: Int): ConsumeResult {
+        when (input) {
+            is Operations.Input -> {
+                this.inp(input.name, inputDigit)
+                return ConsumeResult.INPUT
+            }
+            is Operations.Add -> this.add(input.name, input.token)
+            is Operations.Div -> this.div(input.name, input.token)
+            is Operations.Eql -> this.eql(input.name, input.token)
+            is Operations.Mod -> this.mod(input.name, input.token)
+            is Operations.Mul -> this.mul(input.name, input.token)
+            else -> TODO("unsupported operation: $input")
+        }
+        return ConsumeResult.STANDARD
+    }
+
+    fun inp(a: Token.Variable) {
+        val input = readLine()
+        get(a).num = input!!.toLong()
+    }
+
+    fun inp(a: Token.Variable, num: Int) {
+        get(a).num = num.toLong()
+    }
+
+    fun add(a: Token.Variable, b: Token) = get(a).run {
+        this.num += when (b) {
+            is Token.Number -> b.num
+            is Token.Variable -> get(b).num
+        }.toLong()
+    }
+
+    fun mul(a: Token.Variable, b: Token) = get(a).run {
+        this.num *= when (b) {
+            is Token.Number -> b.num
+            is Token.Variable -> get(b).num
+        }.toLong()
+    }
+
+    fun div(a: Token.Variable, b: Token) = get(a).run {
+        this.num /= when (b) {
+            is Token.Number -> b.num
+            is Token.Variable -> get(b).num
+        }.toLong()
+    }
+
+    fun mod(a: Token.Variable, b: Token) = get(a).run {
+        this.num %= when (b) {
+            is Token.Number -> b.num
+            is Token.Variable -> get(b).num
+        }.toLong()
+    }
+
+    fun eql(a: Token.Variable, b: Token) = get(a).run {
+        val otherNum = when (b) {
+            is Token.Number -> b.num
+            is Token.Variable -> get(b).num
+        }.toLong()
+        val res = if (otherNum == this.num) 1 else 0
+        this.num = res.toLong()
+    }
+
+    fun print() {
+        println(
+            vars.entries.joinToString("\n") {
+                "${it.key}: ${it.value.num}"
+            }
+        )
+    }
+}
+
 fun main() {
 
-
-
-    class ALU {
-        val vars = buildMap {
-            put("x", LongStore(0L))
-            put("y", LongStore(0L))
-            put("z", LongStore(0L))
-            put("w", LongStore(0L))
-        }
-
-        fun reset() {
-            vars.forEach { key, value ->
-                value.num = 0
+    fun calculate(idx: Int, prevAlu: ALU, problemContainer: ProblemContainer) {
+        if (idx == 14) {
+            if (prevAlu.get("z".toVarToken()) == 0L) {
+                TODO("z==0: $prevAlu")
             }
         }
+        val inputVar = problemContainer.inputStack[idx]
+        val operations = problemContainer.operationsStack[idx]
 
-        fun clone(): ALU {
-            val newAlu = ALU()
-            vars.forEach { (k, v) -> newAlu.get(k.toVarToken()).num = v.num }
-            return newAlu
-        }
-
-        fun get(a: Token.Variable): LongStore {
-            return vars[a.name]!!
-        }
-
-        fun consume(input: ProcessedInput, inputDigit: Int): ConsumeResult {
-            when (input) {
-                is ProcessedInput.Input -> {
-                    this.inp(input.name, inputDigit)
-                    return ConsumeResult.INPUT
-                }
-                is ProcessedInput.Add -> this.add(input.name, input.token)
-                is ProcessedInput.Div -> this.div(input.name, input.token)
-                is ProcessedInput.Eql -> this.eql(input.name, input.token)
-                is ProcessedInput.Mod -> this.mod(input.name, input.token)
-                is ProcessedInput.Mul -> this.mul(input.name, input.token)
-                else -> TODO("unsupported operation: $input")
+        for (i in 9 downTo 1) {
+            val currALU = prevAlu.toMutableALU()
+            currALU.inp(inputVar, i)
+            operations.forEach {
+                val result = currALU.consume(it, i)
+                require(result != ConsumeResult.INPUT)
             }
-            return ConsumeResult.STANDARD
-        }
-
-        fun inp(a: Token.Variable) {
-            val input = readLine()
-            get(a).num = input!!.toLong()
-        }
-
-        fun inp(a: Token.Variable, num: Int) {
-            get(a).num = num.toLong()
-        }
-
-        fun add(a: Token.Variable, b: Token) = get(a).run {
-            this.num += when (b) {
-                is Token.Number -> b.num
-                is Token.Variable -> get(b).num
-            }.toLong()
-        }
-
-        fun mul(a: Token.Variable, b: Token) = get(a).run {
-            this.num *= when (b) {
-                is Token.Number -> b.num
-                is Token.Variable -> get(b).num
-            }.toLong()
-        }
-
-        fun div(a: Token.Variable, b: Token) = get(a).run {
-            this.num /= when (b) {
-                is Token.Number -> b.num
-                is Token.Variable -> get(b).num
-            }.toLong()
-        }
-
-        fun mod(a: Token.Variable, b: Token) = get(a).run {
-            this.num %= when (b) {
-                is Token.Number -> b.num
-                is Token.Variable -> get(b).num
-            }.toLong()
-        }
-
-        fun eql(a: Token.Variable, b: Token) = get(a).run {
-            val otherNum = when (b) {
-                is Token.Number -> b.num
-                is Token.Variable -> get(b).num
-            }.toLong()
-            val res = if (otherNum == this.num) 1 else 0
-            this.num = res.toLong()
-        }
-
-        fun print() {
-            println(
-                vars.entries.joinToString("\n") {
-                    "${it.key}: ${it.value.num}"
-                }
-            )
+            calculate(idx + 1, currALU.toALU(), problemContainer)
         }
     }
 
@@ -143,49 +198,52 @@ fun main() {
         println(highestNumber.toString().length)
         println(inputs)
 
-        val processedInputs = inputs.map { input ->
+        val operations = inputs.map { input ->
             when {
                 input.startsWith("inp") -> {
                     val varName = input.last()
-                    ProcessedInput.Input(varName.toToken(), null)
+                    Operations.Input(varName.toToken(), null)
                 }
                 input.startsWith("mul") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    ProcessedInput.Mul(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Mul(varName.toVarToken(), numOrVar.toToken())
                 }
                 input.startsWith("add") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    ProcessedInput.Add(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Add(varName.toVarToken(), numOrVar.toToken())
                 }
                 input.startsWith("div") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    ProcessedInput.Div(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Div(varName.toVarToken(), numOrVar.toToken())
                 }
                 input.startsWith("eql") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    ProcessedInput.Eql(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Eql(varName.toVarToken(), numOrVar.toToken())
                 }
                 input.startsWith("mod") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    ProcessedInput.Mod(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Mod(varName.toVarToken(), numOrVar.toToken())
                 }
                 else -> TODO()
             }
         }
 
+        val inputStack = mutableListOf<Token.Variable>()
         val digitStack = mutableListOf<Int>()
-        var aluStack = mutableListOf<ALU>()
-        val operationsStack = mutableListOf<List<ProcessedInput>>()
+        var aluStack = mutableListOf<MutableALU>()
+        val operationsStack = mutableListOf<List<Operations>>()
 
-        var alu = ALU()
-        val currOperations = mutableListOf<ProcessedInput>()
-        for (input in processedInputs) {
+        var alu = MutableALU()
+        val currOperations = mutableListOf<Operations>()
+        for (input in operations) {
             val result = alu.consume(input, 9)
-            currOperations.add(input)
 
             when (result) {
-                ConsumeResult.STANDARD -> continue
+                ConsumeResult.STANDARD -> {
+                    currOperations.add(input)
+                }
                 ConsumeResult.INPUT -> {
+                    inputStack.add((input as Operations.Input).name)
                     digitStack.add(9)
                     aluStack.add(alu.clone())
                     operationsStack.add(currOperations.toList())
@@ -196,58 +254,70 @@ fun main() {
         operationsStack.add(currOperations.toList())
         operationsStack.removeFirst()
 
+        for (i0 in 1..9) {
+            val alu0 = MutableALU()
+        }
+
         println(
             """
-            digitStack (size=${digitStack.size}): $digitStack,
-            aluStack (size=${aluStack.size}): $aluStack,
-            operationsStack (size=${operationsStack.size}): ${operationsStack.joinToString("\n")}
-            currOperations: $currOperations
+        inputStack: $inputStack
+        digitStack (size=${digitStack.size}): $digitStack,
+        aluStack (size=${aluStack.size}): $aluStack,
+        operationsStack (size=${operationsStack.size}): ${operationsStack.joinToString("\n")}
+        currOperations: $currOperations
         """.trimIndent()
         )
 
-        var numNumbersProcessedPerSecond = 0.0
-        var numNumbersProcessed = 0
-        var startTime = System.currentTimeMillis()
-        var prevNumber = highestNumber
-        for (currNum in (highestNumber - 1) downTo 0L) {
-            val firstUpdatedDiff = prevNumber.toString().asSequence().zip(
-                currNum.toString().asSequence()
-            ).withIndex().first { it.value.first != it.value.second }
-            numNumbersProcessed++
-            val delta = System.currentTimeMillis() - startTime
-            if (delta > 1000) {
-                numNumbersProcessedPerSecond = numNumbersProcessed / delta.toDouble()
-                numNumbersProcessed = 0
-                startTime = System.currentTimeMillis()
-            }
+        val problemContainer = ProblemContainer(
+            inputStack,
+            operationsStack
+        )
 
-            alu = aluStack[firstUpdatedDiff.index].clone()
-            aluStack = aluStack.subList(0, firstUpdatedDiff.index)
-            val remainingOperations = operationsStack[firstUpdatedDiff.index]
-            val asString = currNum.toString()
-            if (asString.contains("0")) continue
-            println(
-                "$asString (qps=$numNumbersProcessedPerSecond), prevNumber: $prevNumber, " +
-                        "currNum: $currNum, firstUpdatedDiff: $firstUpdatedDiff"
-            )
-            val digitItr = asString.subSequence(firstUpdatedDiff.index, 14).map {
-                it.digitToInt()
-            }.iterator()
-            var currDigit = digitItr.next()
-            for (operations in remainingOperations) {
-                when (alu.consume(operations, currDigit)) {
-                    ConsumeResult.STANDARD -> continue
-                    ConsumeResult.INPUT -> {
-                        if (digitItr.hasNext()) {
-                            currDigit = digitItr.next()
-                        }
-                    }
-                }
-            }
-            if (alu.get("z".toVarToken()).num == 0L) break
+        calculate(0, ALU(), problemContainer)
 
-            prevNumber = currNum
-        }
+        //        var numNumbersProcessedPerSecond = 0.0
+        //        var numNumbersProcessed = 0
+        //        var startTime = System.currentTimeMillis()
+        //        var prevNumber = highestNumber
+        //        for (currNum in (highestNumber - 1) downTo 0L) {
+        //            val firstUpdatedDiff = prevNumber.toString().asSequence().zip(
+        //                currNum.toString().asSequence()
+        //            ).withIndex().first { it.value.first != it.value.second }
+        //            numNumbersProcessed++
+        //            val delta = System.currentTimeMillis() - startTime
+        //            if (delta > 1000) {
+        //                numNumbersProcessedPerSecond = numNumbersProcessed / delta.toDouble()
+        //                numNumbersProcessed = 0
+        //                startTime = System.currentTimeMillis()
+        //            }
+        //
+        //            alu = aluStack[firstUpdatedDiff.index].clone()
+        //            aluStack = aluStack.subList(0, firstUpdatedDiff.index)
+        //            val remainingOperations = operationsStack[firstUpdatedDiff.index]
+        //            val asString = currNum.toString()
+        //            if (asString.contains("0")) continue
+        //            println(
+        //                "$asString (qps=$numNumbersProcessedPerSecond), prevNumber: $prevNumber, " +
+        //                        "currNum: $currNum, firstUpdatedDiff: $firstUpdatedDiff"
+        //            )
+        //            val digitItr = asString.subSequence(firstUpdatedDiff.index, 14).map {
+        //                it.digitToInt()
+        //            }.iterator()
+        //            var currDigit = digitItr.next()
+        //            for (operations in remainingOperations) {
+        //                when (alu.consume(operations, currDigit)) {
+        //                    ConsumeResult.STANDARD -> continue
+        //                    ConsumeResult.INPUT -> {
+        //                        if (digitItr.hasNext()) {
+        //                            currDigit = digitItr.next()
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //            if (alu.get("z".toVarToken()).num == 0L) break
+        //
+        //            prevNumber = currNum
+        //        }
     }
 
     fun part2(inputs: List<String>) {
