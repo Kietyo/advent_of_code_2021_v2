@@ -54,7 +54,7 @@ data class ALU(
         "w" to 0L,
     )
 ) {
-    fun get(a: String): Long {
+    fun get(a: Token.Variable): Long {
         return vars[a.name]!!
     }
 
@@ -77,7 +77,7 @@ class MutableALU(
         return ALU(vars.toMap())
     }
 
-    fun get(a: String): Long {
+    fun get(a: Token.Variable): Long {
         return vars[a.name]!!
     }
 
@@ -97,30 +97,30 @@ class MutableALU(
         return ConsumeResult.STANDARD
     }
 
-    fun inp(a: String) {
+    fun inp(a: Token.Variable) {
         val input = readLine()
         vars[a.name] = input!!.toLong()
     }
 
-    fun inp(a: String, num: Int) {
+    fun inp(a: Token.Variable, num: Int) {
         vars[a.name] = num.toLong()
     }
 
-    fun add(a: String, b: Token) {
+    fun add(a: Token.Variable, b: Token) {
         vars[a.name] = vars[a.name]!! + when (b) {
             is Token.Number -> b.num
             is Token.Variable -> get(b)
         }.toLong()
     }
 
-    fun mul(a: String, b: Token) {
+    fun mul(a: Token.Variable, b: Token) {
         vars[a.name] = vars[a.name]!! * when (b) {
             is Token.Number -> b.num
             is Token.Variable -> get(b)
         }.toLong()
     }
 
-    fun div(a: String, b: Token) {
+    fun div(a: Token.Variable, b: Token) {
         val denom = when (b) {
             is Token.Number -> b.num
             is Token.Variable -> get(b)
@@ -129,7 +129,7 @@ class MutableALU(
         vars[a.name] = vars[a.name]!! / denom
     }
 
-    fun mod(a: String, b: Token) {
+    fun mod(a: Token.Variable, b: Token) {
         val aVal = vars[a.name]!!
         require(aVal >= 0L)
         val bVal = when (b) {
@@ -140,7 +140,7 @@ class MutableALU(
         vars[a.name] = aVal % bVal
     }
 
-    fun eql(a: String, b: Token) {
+    fun eql(a: Token.Variable, b: Token) {
         val otherNum = when (b) {
             is Token.Number -> b.num
             is Token.Variable -> get(b)
