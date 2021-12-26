@@ -54,48 +54,30 @@ data class ALU(
         "w" to 0L,
     )
 ) {
-    fun get(a: Token.Variable): Long {
+    fun get(a: String): Long {
         return vars[a.name]!!
     }
 
     fun toMutableALU(): MutableALU {
-        val alu = MutableALU()
-        vars.forEach { entry ->
-            alu.get(entry.key.toVarToken()).num = entry.value
-        }
-        return alu
+        return MutableALU(vars.toMutableMap())
     }
 }
 
-class MutableALU {
-    val vars = buildMap {
-        put("x", LongStore(0L))
-        put("y", LongStore(0L))
-        put("z", LongStore(0L))
-        put("w", LongStore(0L))
-    }
+class MutableALU(
+    val vars: MutableMap<String, Long> = mutableMapOf<String, Long>(
+        "x" to 0L,
+        "y" to 0L,
+        "z" to 0L,
+        "w" to 0L,
+    )
+) {
 
-    fun reset() {
-        vars.forEach { key, value ->
-            value.num = 0
-        }
-    }
 
     fun toALU(): ALU {
-        return ALU(buildMap {
-            vars.forEach { entry ->
-                put(entry.key, entry.value.num)
-            }
-        })
+        return ALU(vars.toMap())
     }
 
-    fun clone(): MutableALU {
-        val newAlu = MutableALU()
-        vars.forEach { (k, v) -> newAlu.get(k.toVarToken()).num = v.num }
-        return newAlu
-    }
-
-    fun get(a: Token.Variable): LongStore {
+    fun get(a: String): Long {
         return vars[a.name]!!
     }
 
@@ -115,56 +97,62 @@ class MutableALU {
         return ConsumeResult.STANDARD
     }
 
-    fun inp(a: Token.Variable) {
+    fun inp(a: String) {
         val input = readLine()
-        get(a).num = input!!.toLong()
+        vars[a.name] = input!!.toLong()
     }
 
-    fun inp(a: Token.Variable, num: Int) {
-        get(a).num = num.toLong()
+    fun inp(a: String, num: Int) {
+        vars[a.name] = num.toLong()
     }
 
-    fun add(a: Token.Variable, b: Token) = get(a).run {
-        this.num += when (b) {
+    fun add(a: String, b: Token) {
+        vars[a.name] = vars[a.name]!! + when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b).num
+            is Token.Variable -> get(b)
         }.toLong()
     }
 
-    fun mul(a: Token.Variable, b: Token) = get(a).run {
-        this.num *= when (b) {
+    fun mul(a: String, b: Token) {
+        vars[a.name] = vars[a.name]!! * when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b).num
+            is Token.Variable -> get(b)
         }.toLong()
     }
 
-    fun div(a: Token.Variable, b: Token) = get(a).run {
-        this.num /= when (b) {
+    fun div(a: String, b: Token) {
+        val denom = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b).num
+            is Token.Variable -> get(b)
         }.toLong()
+        require(denom != 0L)
+        vars[a.name] = vars[a.name]!! / denom
     }
 
-    fun mod(a: Token.Variable, b: Token) = get(a).run {
-        this.num %= when (b) {
+    fun mod(a: String, b: Token) {
+        val aVal = vars[a.name]!!
+        require(aVal >= 0L)
+        val bVal = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b).num
+            is Token.Variable -> get(b)
         }.toLong()
+        require(bVal > 0L)
+        vars[a.name] = aVal % bVal
     }
 
-    fun eql(a: Token.Variable, b: Token) = get(a).run {
+    fun eql(a: String, b: Token) {
         val otherNum = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b).num
+            is Token.Variable -> get(b)
         }.toLong()
-        val res = if (otherNum == this.num) 1 else 0
-        this.num = res.toLong()
+        val curr = get(a)
+        vars[a.name] = if (otherNum == curr) 1L else 0L
     }
 
     fun print() {
         println(
             vars.entries.joinToString("\n") {
-                "${it.key}: ${it.value.num}"
+                "${it.key}: ${it.value}"
             }
         )
     }
@@ -244,7 +232,6 @@ fun main() {
 
         val inputStack = mutableListOf<Token.Variable>()
         val digitStack = mutableListOf<Int>()
-        var aluStack = mutableListOf<MutableALU>()
         val operationsStack = mutableListOf<List<Operations>>()
 
         var alu = MutableALU()
@@ -259,7 +246,6 @@ fun main() {
                 ConsumeResult.INPUT -> {
                     inputStack.add((input as Operations.Input).name)
                     digitStack.add(9)
-                    aluStack.add(alu.clone())
                     operationsStack.add(currOperations.toList())
                     currOperations.clear()
                 }
@@ -276,7 +262,6 @@ fun main() {
             """
         inputStack: $inputStack
         digitStack (size=${digitStack.size}): $digitStack,
-        aluStack (size=${aluStack.size}): $aluStack,
         operationsStack (size=${operationsStack.size}): ${operationsStack.joinToString("\n")}
         currOperations: $currOperations
         """.trimIndent()
@@ -288,50 +273,6 @@ fun main() {
         )
 
         calculate(0, ALU(), problemContainer, 0L)
-
-        //        var numNumbersProcessedPerSecond = 0.0
-        //        var numNumbersProcessed = 0
-        //        var startTime = System.currentTimeMillis()
-        //        var prevNumber = highestNumber
-        //        for (currNum in (highestNumber - 1) downTo 0L) {
-        //            val firstUpdatedDiff = prevNumber.toString().asSequence().zip(
-        //                currNum.toString().asSequence()
-        //            ).withIndex().first { it.value.first != it.value.second }
-        //            numNumbersProcessed++
-        //            val delta = System.currentTimeMillis() - startTime
-        //            if (delta > 1000) {
-        //                numNumbersProcessedPerSecond = numNumbersProcessed / delta.toDouble()
-        //                numNumbersProcessed = 0
-        //                startTime = System.currentTimeMillis()
-        //            }
-        //
-        //            alu = aluStack[firstUpdatedDiff.index].clone()
-        //            aluStack = aluStack.subList(0, firstUpdatedDiff.index)
-        //            val remainingOperations = operationsStack[firstUpdatedDiff.index]
-        //            val asString = currNum.toString()
-        //            if (asString.contains("0")) continue
-        //            println(
-        //                "$asString (qps=$numNumbersProcessedPerSecond), prevNumber: $prevNumber, " +
-        //                        "currNum: $currNum, firstUpdatedDiff: $firstUpdatedDiff"
-        //            )
-        //            val digitItr = asString.subSequence(firstUpdatedDiff.index, 14).map {
-        //                it.digitToInt()
-        //            }.iterator()
-        //            var currDigit = digitItr.next()
-        //            for (operations in remainingOperations) {
-        //                when (alu.consume(operations, currDigit)) {
-        //                    ConsumeResult.STANDARD -> continue
-        //                    ConsumeResult.INPUT -> {
-        //                        if (digitItr.hasNext()) {
-        //                            currDigit = digitItr.next()
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //            if (alu.get("z".toVarToken()).num == 0L) break
-        //
-        //            prevNumber = currNum
-        //        }
     }
 
     fun part2(inputs: List<String>) {
