@@ -1,34 +1,39 @@
 sealed class Token {
-    data class Variable(val name: String) : Token()
+    data class Variable(val name: VariableName) : Token()
     data class Number(val num: Int) : Token()
 }
 
-fun String.toVarToken(): Token.Variable {
-    return Token.Variable(this)
+enum class VariableName {
+    X,
+    Y,
+    W,
+    Z;
+}
+
+fun String.toVariableName(): VariableName {
+    return when (this) {
+        "x" -> VariableName.X
+        "y" -> VariableName.Y
+        "z" -> VariableName.Z
+        "w" -> VariableName.W
+        else -> TODO()
+    }
 }
 
 fun String.toToken(): Token {
     if (this.last().isDigit()) {
         return Token.Number(this.toInt())
     }
-    return Token.Variable(this)
-}
-
-fun Char.toToken(): Token.Variable {
-    return Token.Variable(this.toString())
-}
-
-fun Int.toToken(): Token.Number {
-    return Token.Number(this)
+    return Token.Variable(this.toVariableName())
 }
 
 sealed class Operations {
-    data class Input(val name: Token.Variable, var digit: Int?) : Operations()
-    data class Mul(val name: Token.Variable, val token: Token) : Operations()
-    data class Add(val name: Token.Variable, val token: Token) : Operations()
-    data class Div(val name: Token.Variable, val token: Token) : Operations()
-    data class Eql(val name: Token.Variable, val token: Token) : Operations()
-    data class Mod(val name: Token.Variable, val token: Token) : Operations()
+    data class Input(val name: VariableName, var digit: Int?) : Operations()
+    data class Mul(val name: VariableName, val token: Token) : Operations()
+    data class Add(val name: VariableName, val token: Token) : Operations()
+    data class Div(val name: VariableName, val token: Token) : Operations()
+    data class Eql(val name: VariableName, val token: Token) : Operations()
+    data class Mod(val name: VariableName, val token: Token) : Operations()
 }
 
 class LongStore(var num: Long)
@@ -47,38 +52,26 @@ data class ProblemContainer(
 )
 
 data class ALU(
-    private val vars: Map<String, Long> = mapOf(
-        "x" to 0L,
-        "y" to 0L,
-        "z" to 0L,
-        "w" to 0L,
-    )
+    private val vars: LongArray
 ) {
-    fun get(a: Token.Variable): Long {
-        return vars[a.name]!!
+    fun get(a: VariableName): Long {
+        return vars[a.ordinal]
     }
 
     fun toMutableALU(): MutableALU {
-        return MutableALU(vars.toMutableMap())
+        return MutableALU(vars)
     }
 }
 
 class MutableALU(
-    val vars: MutableMap<String, Long> = mutableMapOf<String, Long>(
-        "x" to 0L,
-        "y" to 0L,
-        "z" to 0L,
-        "w" to 0L,
-    )
+    val vars: LongArray = LongArray(4) { 0L }
 ) {
-
-
     fun toALU(): ALU {
-        return ALU(vars.toMap())
+        return ALU(vars.clone())
     }
 
-    fun get(a: Token.Variable): Long {
-        return vars[a.name]!!
+    fun get(a: VariableName): Long {
+        return vars[a.ordinal]
     }
 
     fun consume(input: Operations, inputDigit: Int): ConsumeResult {
@@ -97,62 +90,66 @@ class MutableALU(
         return ConsumeResult.STANDARD
     }
 
-    fun inp(a: Token.Variable) {
+    fun inp(a: VariableName) {
         val input = readLine()
-        vars[a.name] = input!!.toLong()
+        vars[a.ordinal] = input!!.toLong()
     }
 
-    fun inp(a: Token.Variable, num: Int) {
-        vars[a.name] = num.toLong()
+    fun inp(a: VariableName, num: Int) {
+        vars[a.ordinal] = num.toLong()
     }
 
-    fun add(a: Token.Variable, b: Token) {
-        vars[a.name] = vars[a.name]!! + when (b) {
+    fun add(a: VariableName, b: Token) {
+        vars[a.ordinal] = vars[a.ordinal]!! + when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b)
+            is Token.Variable -> get(b.name)
         }.toLong()
     }
 
-    fun mul(a: Token.Variable, b: Token) {
-        vars[a.name] = vars[a.name]!! * when (b) {
+    fun mul(a: VariableName, b: Token) {
+        vars[a.ordinal] = vars[a.ordinal]!! * when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b)
+            is Token.Variable -> get(b.name)
         }.toLong()
     }
 
-    fun div(a: Token.Variable, b: Token) {
+    fun div(a: VariableName, b: Token) {
         val denom = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b)
+            is Token.Variable -> get(b.name)
         }.toLong()
         require(denom != 0L)
-        vars[a.name] = vars[a.name]!! / denom
+        vars[a.ordinal] = vars[a.ordinal]!! / denom
     }
 
-    fun mod(a: Token.Variable, b: Token) {
-        val aVal = vars[a.name]!!
+    fun mod(a: VariableName, b: Token) {
+        val aVal = vars[a.ordinal]!!
+        if (aVal < 0L) {
+            println("failed precon")
+        }
         require(aVal >= 0L)
         val bVal = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b)
+            is Token.Variable -> get(b.name)
         }.toLong()
         require(bVal > 0L)
-        vars[a.name] = aVal % bVal
+        vars[a.ordinal] = aVal % bVal
     }
 
-    fun eql(a: Token.Variable, b: Token) {
+    fun eql(a: VariableName, b: Token) {
         val otherNum = when (b) {
             is Token.Number -> b.num
-            is Token.Variable -> get(b)
+            is Token.Variable -> get(b.name)
         }.toLong()
         val curr = get(a)
-        vars[a.name] = if (otherNum == curr) 1L else 0L
+        vars[a.ordinal] = if (otherNum == curr) 1L else 0L
     }
 
     fun print() {
         println(
-            vars.entries.joinToString("\n") {
-                "${it.key}: ${it.value}"
+            vars.withIndex().joinToString {
+                val varName = VariableName.values()[it.index]
+                "$varName: ${it.value}"
             }
         )
     }
@@ -175,17 +172,16 @@ fun main() {
                 println("$currNum (qps=$numNumbersProcessedPerSecond)")
             }
 
-            if (prevAlu.get("z".toVarToken()) == 0L) {
+            if (prevAlu.get(VariableName.Z) == 0L) {
                 TODO("z==0: $prevAlu")
             }
             return
         }
-        val inputVar = problemContainer.inputStack[idx]
         val operations = problemContainer.operationsStack[idx]
 
-        for (i in 9 downTo 1) {
+        for (i in 1..9) {
             val currALU = prevAlu.toMutableALU()
-            currALU.inp(inputVar, i)
+            currALU.inp(VariableName.W, i)
             operations.forEach {
                 val result = currALU.consume(it, i)
                 require(result != ConsumeResult.INPUT)
@@ -204,64 +200,56 @@ fun main() {
             when {
                 input.startsWith("inp") -> {
                     val varName = input.last()
-                    Operations.Input(varName.toToken(), null)
+                    Operations.Input(varName.toString().toVariableName(), null)
                 }
                 input.startsWith("mul") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Mul(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Mul(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("add") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Add(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Add(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("div") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Div(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Div(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("eql") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Eql(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Eql(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("mod") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Mod(varName.toVarToken(), numOrVar.toToken())
+                    Operations.Mod(varName.toVariableName(), numOrVar.toToken())
                 }
                 else -> TODO()
             }
         }
 
         val inputStack = mutableListOf<Token.Variable>()
-        val digitStack = mutableListOf<Int>()
         val operationsStack = mutableListOf<List<Operations>>()
-
-        var alu = MutableALU()
         val currOperations = mutableListOf<Operations>()
         for (input in operations) {
-            val result = alu.consume(input, 9)
-
-            when (result) {
-                ConsumeResult.STANDARD -> {
-                    currOperations.add(input)
-                }
-                ConsumeResult.INPUT -> {
-                    inputStack.add((input as Operations.Input).name)
-                    digitStack.add(9)
+            when (input) {
+                is Operations.Input -> {
                     operationsStack.add(currOperations.toList())
                     currOperations.clear()
+                }
+                is Operations.Add,
+                is Operations.Div,
+                is Operations.Eql,
+                is Operations.Mod,
+                is Operations.Mul -> {
+                    currOperations.add(input)
                 }
             }
         }
         operationsStack.add(currOperations.toList())
         operationsStack.removeFirst()
 
-        for (i0 in 1..9) {
-            val alu0 = MutableALU()
-        }
-
         println(
             """
         inputStack: $inputStack
-        digitStack (size=${digitStack.size}): $digitStack,
         operationsStack (size=${operationsStack.size}): ${operationsStack.joinToString("\n")}
         currOperations: $currOperations
         """.trimIndent()
@@ -272,7 +260,7 @@ fun main() {
             operationsStack
         )
 
-        calculate(0, ALU(), problemContainer, 0L)
+        calculate(0, ALU(LongArray(4) { 0L }), problemContainer, 0L)
     }
 
     fun part2(inputs: List<String>) {
