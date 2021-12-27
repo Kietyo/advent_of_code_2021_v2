@@ -1,3 +1,5 @@
+import java.math.BigInteger
+
 sealed class Token {
     data class Variable(val name: VariableName) : Token()
     data class Number(val num: Int) : Token()
@@ -36,11 +38,10 @@ sealed class Operations {
     data class Mod(val name: VariableName, val token: Token) : Operations()
 }
 
-class LongStore(var num: Long)
-
-enum class ConsumeResult {
-    STANDARD,
-    INPUT;
+enum class OperatorResult {
+    NO_ERROR,
+    INPUT,
+    ERROR;
 }
 
 data class ProblemContainer(
@@ -52,33 +53,47 @@ data class ProblemContainer(
 )
 
 data class ALU(
-    private val vars: LongArray
+    private val vars: Array<BigInteger>
 ) {
-    fun get(a: VariableName): Long {
+    fun get(a: VariableName): BigInteger {
         return vars[a.ordinal]
     }
 
     fun toMutableALU(): MutableALU {
-        return MutableALU(vars)
+        return MutableALU(vars.clone())
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ALU
+
+        if (!vars.contentEquals(other.vars)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return vars.contentHashCode()
     }
 }
 
 class MutableALU(
-    val vars: LongArray = LongArray(4) { 0L }
+    val vars: Array<BigInteger>
 ) {
     fun toALU(): ALU {
         return ALU(vars.clone())
     }
 
-    fun get(a: VariableName): Long {
+    fun get(a: VariableName): BigInteger {
         return vars[a.ordinal]
     }
 
-    fun consume(input: Operations, inputDigit: Int): ConsumeResult {
-        when (input) {
+    fun consume(input: Operations, inputDigit: Int): OperatorResult {
+        return when (input) {
             is Operations.Input -> {
                 this.inp(input.name, inputDigit)
-                return ConsumeResult.INPUT
             }
             is Operations.Add -> this.add(input.name, input.token)
             is Operations.Div -> this.div(input.name, input.token)
@@ -87,62 +102,67 @@ class MutableALU(
             is Operations.Mul -> this.mul(input.name, input.token)
             else -> TODO("unsupported operation: $input")
         }
-        return ConsumeResult.STANDARD
     }
 
     fun inp(a: VariableName) {
         val input = readLine()
-        vars[a.ordinal] = input!!.toLong()
+        vars[a.ordinal] = input!!.toBigInteger()
     }
 
-    fun inp(a: VariableName, num: Int) {
-        vars[a.ordinal] = num.toLong()
+    fun inp(a: VariableName, num: Int): OperatorResult {
+        vars[a.ordinal] = num.toBigInteger()
+        return OperatorResult.NO_ERROR
     }
 
-    fun add(a: VariableName, b: Token) {
+    fun add(a: VariableName, b: Token): OperatorResult {
         vars[a.ordinal] = vars[a.ordinal]!! + when (b) {
-            is Token.Number -> b.num
+            is Token.Number -> b.num.toBigInteger()
             is Token.Variable -> get(b.name)
-        }.toLong()
-    }
-
-    fun mul(a: VariableName, b: Token) {
-        vars[a.ordinal] = vars[a.ordinal]!! * when (b) {
-            is Token.Number -> b.num
-            is Token.Variable -> get(b.name)
-        }.toLong()
-    }
-
-    fun div(a: VariableName, b: Token) {
-        val denom = when (b) {
-            is Token.Number -> b.num
-            is Token.Variable -> get(b.name)
-        }.toLong()
-        require(denom != 0L)
-        vars[a.ordinal] = vars[a.ordinal]!! / denom
-    }
-
-    fun mod(a: VariableName, b: Token) {
-        val aVal = vars[a.ordinal]!!
-        if (aVal < 0L) {
-            println("failed precon")
         }
-        require(aVal >= 0L)
-        val bVal = when (b) {
-            is Token.Number -> b.num
-            is Token.Variable -> get(b.name)
-        }.toLong()
-        require(bVal > 0L)
-        vars[a.ordinal] = aVal % bVal
+        return OperatorResult.NO_ERROR
     }
 
-    fun eql(a: VariableName, b: Token) {
-        val otherNum = when (b) {
-            is Token.Number -> b.num
+    fun mul(a: VariableName, b: Token): OperatorResult {
+        vars[a.ordinal] = vars[a.ordinal]!! * when (b) {
+            is Token.Number -> b.num.toBigInteger()
             is Token.Variable -> get(b.name)
-        }.toLong()
+        }
+        return OperatorResult.NO_ERROR
+    }
+
+    fun div(a: VariableName, b: Token): OperatorResult {
+        val denom = when (b) {
+            is Token.Number -> b.num.toBigInteger()
+            is Token.Variable -> get(b.name)
+        }
+        require(denom != BigInteger.ZERO)
+        vars[a.ordinal] = vars[a.ordinal]!! / denom
+        return OperatorResult.NO_ERROR
+    }
+
+    fun mod(a: VariableName, b: Token): OperatorResult {
+        val aVal = vars[a.ordinal]!!
+        if (aVal < BigInteger.ZERO) {
+            return OperatorResult.ERROR
+        }
+        require(aVal >= BigInteger.ZERO)
+        val bVal = when (b) {
+            is Token.Number -> b.num.toBigInteger()
+            is Token.Variable -> get(b.name)
+        }
+        require(bVal > BigInteger.ZERO)
+        vars[a.ordinal] = aVal % bVal
+        return OperatorResult.NO_ERROR
+    }
+
+    fun eql(a: VariableName, b: Token): OperatorResult {
+        val otherNum = when (b) {
+            is Token.Number -> b.num.toBigInteger()
+            is Token.Variable -> get(b.name)
+        }
         val curr = get(a)
-        vars[a.ordinal] = if (otherNum == curr) 1L else 0L
+        vars[a.ordinal] = if (otherNum == curr) BigInteger.ONE else BigInteger.ZERO
+        return OperatorResult.NO_ERROR
     }
 
     fun print() {
@@ -155,14 +175,23 @@ class MutableALU(
     }
 }
 
+data class State(
+    val idx: Int,
+    val prevALU: ALU,
+)
+
 fun main() {
 
     var numNumbersProcessedPerSecond = 0.0
     var numNumbersProcessed = 0
     var startTime = System.currentTimeMillis()
 
-    fun calculate(idx: Int, prevAlu: ALU, problemContainer: ProblemContainer, currNum: Long) {
-        if (idx == 14) {
+    // States that we know will not lead to z=0.
+    val dp = mutableSetOf<State>()
+
+    fun calculate(state: State, problemContainer: ProblemContainer, currNum: Long) {
+        if (dp.contains(state)) return
+        if (state.idx == 14) {
             numNumbersProcessed++
             val delta = System.currentTimeMillis() - startTime
             if (delta > 1000) {
@@ -172,22 +201,36 @@ fun main() {
                 println("$currNum (qps=$numNumbersProcessedPerSecond)")
             }
 
-            if (prevAlu.get(VariableName.Z) == 0L) {
-                TODO("z==0: $prevAlu")
+            if (state.prevALU.get(VariableName.Z) == BigInteger.ZERO) {
+                TODO("z==0: ${state}, currNum: $currNum")
             }
             return
         }
-        val operations = problemContainer.operationsStack[idx]
+        val operations = problemContainer.operationsStack[state.idx]
 
         for (i in 1..9) {
-            val currALU = prevAlu.toMutableALU()
+            val currALU = state.prevALU.toMutableALU()
             currALU.inp(VariableName.W, i)
-            operations.forEach {
-                val result = currALU.consume(it, i)
-                require(result != ConsumeResult.INPUT)
+            var successfulOperations = true
+            for (operator in operations) {
+                val result = currALU.consume(operator, i)
+                require(result != OperatorResult.INPUT)
+                if (result == OperatorResult.ERROR) {
+                    successfulOperations = false
+                    break
+                }
             }
-            calculate(idx + 1, currALU.toALU(), problemContainer, currNum * 10 + i)
+            if (!successfulOperations) {
+                continue
+            }
+            calculate(
+                State(
+                    state.idx + 1, currALU.toALU()
+                ), problemContainer, currNum * 10 + i
+            )
         }
+
+        dp.add(state)
     }
 
     fun part1(inputs: List<String>) {
@@ -260,7 +303,11 @@ fun main() {
             operationsStack
         )
 
-        calculate(0, ALU(LongArray(4) { 0L }), problemContainer, 0L)
+        calculate(
+            State(
+                0, ALU(Array<BigInteger>(4) { BigInteger.ZERO })
+            ), problemContainer, 0L
+        )
     }
 
     fun part2(inputs: List<String>) {
