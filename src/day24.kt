@@ -27,20 +27,14 @@ fun String.toToken(): Token {
     return Token.Variable(this.toVariableName())
 }
 
-sealed class Operations {
-    data class Input(val name: VariableName, var digit: Int?) : Operations()
-    data class Mul(val name: VariableName, val token: Token) : Operations()
-    data class Add(val name: VariableName, val token: Token) : Operations()
-    data class Div(val name: VariableName, val token: Token) : Operations()
-    data class Eql(val name: VariableName, val token: Token) : Operations()
-    data class Mod(val name: VariableName, val token: Token) : Operations()
+sealed class Operation {
+    data class Input(val name: VariableName, var digit: Int?) : Operation()
+    data class Mul(val name: VariableName, val token: Token) : Operation()
+    data class Add(val name: VariableName, val token: Token) : Operation()
+    data class Div(val name: VariableName, val token: Token) : Operation()
+    data class Eql(val name: VariableName, val token: Token) : Operation()
+    data class Mod(val name: VariableName, val token: Token) : Operation()
 }
-
-data class ProblemContainer(
-    // Corresponds to the list of operations after accepting the input variable at the
-    // corresponding index.
-    val operationsStack: List<List<Operations>>
-)
 
 data class ALU(
     private val vars: Array<Long>
@@ -80,16 +74,16 @@ class MutableALU(
         return vars[a.ordinal]
     }
 
-    fun consume(input: Operations, inputDigit: Int) {
+    fun consume(input: Operation, inputDigit: Int) {
         when (input) {
-            is Operations.Input -> {
+            is Operation.Input -> {
                 this.inp(input.name, inputDigit)
             }
-            is Operations.Add -> this.add(input.name, input.token)
-            is Operations.Div -> this.div(input.name, input.token)
-            is Operations.Eql -> this.eql(input.name, input.token)
-            is Operations.Mod -> this.mod(input.name, input.token)
-            is Operations.Mul -> this.mul(input.name, input.token)
+            is Operation.Add -> this.add(input.name, input.token)
+            is Operation.Div -> this.div(input.name, input.token)
+            is Operation.Eql -> this.eql(input.name, input.token)
+            is Operation.Mod -> this.mod(input.name, input.token)
+            is Operation.Mul -> this.mul(input.name, input.token)
             else -> TODO("unsupported operation: $input")
         }
     }
@@ -172,7 +166,7 @@ fun main() {
     // States that we know will not lead to z=0.
     val dp = mutableSetOf<State>()
 
-    fun calculate(state: State, problemContainer: ProblemContainer, currNum: Long) {
+    fun calculate(state: State, operations: List<List<Operation>>, currNum: Long) {
         if (dp.contains(state)) return
         if (state.idx == 14) {
             numNumbersProcessed++
@@ -187,20 +181,19 @@ fun main() {
             if (state.prevALU.get(VariableName.Z) == 0L) {
                 TODO("FOUND z==0: ${state}, currNum: $currNum")
             }
+            dp.add(state)
             return
         }
-        val operations = problemContainer.operationsStack[state.idx]
-
         for (i in 9 downTo 1) {
             val currALU = state.prevALU.toMutableALU()
             currALU.inp(VariableName.W, i)
-            for (operator in operations) {
+            for (operator in operations[state.idx]) {
                 currALU.consume(operator, i)
             }
             calculate(
                 State(
                     state.idx + 1, currALU.toALU()
-                ), problemContainer, currNum * 10 + i
+                ), operations, currNum * 10 + i
             )
         }
 
@@ -208,78 +201,74 @@ fun main() {
     }
 
     fun part1(inputs: List<String>) {
-        val operations = inputs.map { input ->
+        val allOperations = inputs.map { input ->
             when {
                 input.startsWith("inp") -> {
                     val varName = input.last()
-                    Operations.Input(varName.toString().toVariableName(), null)
+                    Operation.Input(varName.toString().toVariableName(), null)
                 }
                 input.startsWith("mul") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Mul(varName.toVariableName(), numOrVar.toToken())
+                    Operation.Mul(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("add") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Add(varName.toVariableName(), numOrVar.toToken())
+                    Operation.Add(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("div") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Div(varName.toVariableName(), numOrVar.toToken())
+                    Operation.Div(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("eql") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Eql(varName.toVariableName(), numOrVar.toToken())
+                    Operation.Eql(varName.toVariableName(), numOrVar.toToken())
                 }
                 input.startsWith("mod") -> {
                     val (_, varName, numOrVar) = input.split(" ")
-                    Operations.Mod(varName.toVariableName(), numOrVar.toToken())
+                    Operation.Mod(varName.toVariableName(), numOrVar.toToken())
                 }
                 else -> TODO()
             }
         }
 
-        val operationsStack = mutableListOf<List<Operations>>()
-        val currOperations = mutableListOf<Operations>()
-        for (input in operations) {
+        val operations = mutableListOf<List<Operation>>()
+        val currOperations = mutableListOf<Operation>()
+        for (input in allOperations) {
             when (input) {
-                is Operations.Input -> {
-                    operationsStack.add(currOperations.toList())
+                is Operation.Input -> {
+                    operations.add(currOperations.toList())
                     currOperations.clear()
                 }
-                is Operations.Add,
-                is Operations.Div,
-                is Operations.Eql,
-                is Operations.Mod,
-                is Operations.Mul -> {
+                is Operation.Add,
+                is Operation.Div,
+                is Operation.Eql,
+                is Operation.Mod,
+                is Operation.Mul -> {
                     currOperations.add(input)
                 }
             }
         }
-        operationsStack.add(currOperations.toList())
+        operations.add(currOperations.toList())
 
         // The first list of operations will be empty since there are no operations
         // before the first input.
-        operationsStack.removeFirst()
+        operations.removeFirst()
 
         require(
-            operationsStack.size == 14
+            operations.size == 14
         )
 
         println(
             """
-        operationsStack (size=${operationsStack.size}): ${operationsStack.joinToString("\n")}
+        operationsStack (size=${operations.size}): ${operations.joinToString("\n")}
         currOperations: $currOperations
         """.trimIndent()
-        )
-
-        val problemContainer = ProblemContainer(
-            operationsStack
         )
 
         calculate(
             State(
                 0, ALU(Array<Long>(4) { 0L })
-            ), problemContainer, 0L
+            ), operations, 0L
         )
     }
 
