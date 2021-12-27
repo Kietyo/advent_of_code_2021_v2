@@ -267,7 +267,7 @@ fun main() {
 
         calculate(
             State(
-                0, ALU(Array<Long>(4) { 0L })
+                0, ALU(Array(4) { 0L })
             ), operations, 0L
         )
     }
