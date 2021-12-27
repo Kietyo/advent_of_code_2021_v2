@@ -202,7 +202,7 @@ fun main() {
             }
 
             if (state.prevALU.get(VariableName.Z) == BigInteger.ZERO) {
-                TODO("z==0: ${state}, currNum: $currNum")
+                TODO("FOUND z==0: ${state}, currNum: $currNum")
             }
             return
         }
@@ -318,12 +318,6 @@ fun main() {
     val mainInput = readInput("day24")
 
     println(Long.MAX_VALUE)
-
-    //    val alu = ALU()
-    //    alu.inp("x".toVarToken(), 9)
-    //    alu.eql("x".toVarToken(), Token.Number(9))
-    //
-    //    alu.print()
 
     //            part1(testInput)
     part1(mainInput)
