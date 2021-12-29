@@ -48,8 +48,8 @@ fun <E1, E2> Iterable<E1>.cross(list2: Iterable<E2>): List<Pair<E1, E2>> {
 }
 
 data class OverlappingResults(
-    val destinationScanner: ScannerData,
     val sourceScanner: ScannerData,
+    val destinationScanner: ScannerData,
     // The orientation used in the source scanner which resulted in the destination scanner.
     val orientationIdxUsedForSource: Int,
     // Corresponds to the offsets used to translate the source points to the destination points
@@ -64,22 +64,6 @@ data class OverlappingResults(
         listOf(orientationConfig),
         listOf(offsets)
     )
-
-    init {
-        require(getOverlappingPointsRelativeToDestination().size == 12)
-    }
-
-    fun getOverlappingPointsRelativeToDestination(): List<Vector3D> {
-        return destinationScanner.initialOrientation.intersect(
-            sourceScanner.allUniqueOrientations[orientationIdxUsedForSource].map {
-                Vector3D(
-                    it.x + offsets.first,
-                    it.y + offsets.second,
-                    it.z + offsets.third
-                )
-            }.toSet()
-        ).toList()
-    }
 }
 
 data class OrientationConfig(
@@ -98,18 +82,12 @@ data class TranslationConfig(
     // The orientation config describes the rotations/flips needed to turn source points
     // to destination points.
     val orientationConfigs: List<OrientationConfig>,
+    // The offsets describe how we should move the source scanner such that it's in the
+    // exact same position as the destination scanner.
     val offsets: List<Triple<Int, Int, Int>>
 ) {
     init {
         require(sourceScannerId != destScannerId)
-    }
-
-    fun translate(scannerData: ScannerData): List<Vector3D> {
-        if (scannerData.id == destScannerId) {
-            return scannerData.initialOrientation
-        }
-        require(scannerData.id == sourceScannerId)
-        return translate(scannerData.initialOrientation)
     }
 
     fun translate(scanner2Points: List<Vector3D>): List<Vector3D> {
@@ -192,6 +170,7 @@ data class ScannerData(
 
         this.allUniqueOrientations = orientedPointsList
         this.orientationConfigs = orientationConfigs
+        require(this.allUniqueOrientations.size == 24)
 
         println(
             """
@@ -226,8 +205,8 @@ data class ScannerData(
 
             if (highestXDiff.value >= 12 && highestYDiff.value >= 12 && highestZDiff.value >= 12) {
                 return OverlappingResults(
-                    this,
                     other,
+                    this,
                     idx,
                     Triple(highestXDiff.key, highestYDiff.key, highestZDiff.key)
                 )
@@ -346,7 +325,7 @@ fun main() {
                     }
                 }
             }
-            var newSize = coveredTranslations.size
+            val newSize = coveredTranslations.size
             if (currentSize == newSize) {
                 // No more changes!
                 break
@@ -360,7 +339,8 @@ fun main() {
                 .second
         }).joinToString("\n"))
 
-        var allBeaconPointsInScannerZeroCoords = buildSet<Vector3D> {
+        // Part 1
+        val allBeaconPointsInScannerZeroCoords = buildSet {
             scannerData.forEach {
                 addAll(it.getTranslatedPoints(translationConfigs, 0))
             }
@@ -369,6 +349,7 @@ fun main() {
         println("beaconPointsInScannerZeroCoords: $allBeaconPointsInScannerZeroCoords")
         println(allBeaconPointsInScannerZeroCoords.size)
 
+        // Part 2
         var largestManhattanDistance = Int.MIN_VALUE
         for (scanner1 in scannerData) {
             val translated1 = scanner1.getTranslatedScannerPoint(translationConfigs, 0)
@@ -385,10 +366,6 @@ fun main() {
         }
 
         println("largestManhattanDistance: $largestManhattanDistance")
-    }
-
-    fun part2(inputs: List<String>) {
-
     }
 
     val testInput = readInput("day19_test")

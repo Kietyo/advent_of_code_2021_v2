@@ -6,9 +6,8 @@ repositories {
     mavenCentral()
 }
 dependencies {
-    implementation("org.junit.jupiter:junit-jupiter:5.7.0")
-    implementation("org.junit.jupiter:junit-jupiter:5.7.0")
-    implementation("org.junit.jupiter:junit-jupiter:5.7.0")
+    implementation("org.junit.jupiter:junit-jupiter:5.8.2")
+    testImplementation(kotlin("test"))
 }
 
 tasks {
@@ -20,5 +19,9 @@ tasks {
 
     wrapper {
         gradleVersion = "7.3"
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
