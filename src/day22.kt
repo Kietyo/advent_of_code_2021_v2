@@ -108,11 +108,12 @@ fun main() {
             val intersects = outputCubes.mapNotNull {
                 input.intersect(it)
             }
+
+            if (input.action == Action.ON) {
+                outputCubes.add(input)
+            }
+
             for (intersect in intersects) {
-                if (input.action == Action.ON) {
-                    outputCubes.add(input)
-                }
-                
                 when (input.action) {
                     Action.ON -> {
                         when (intersect.action) {
@@ -152,8 +153,8 @@ fun main() {
     //    part1(testInput)
     //        part1(mainInput)
     //
-    //        part2(testInput)
-    part2(mainInput)
+    part2(testInput)
+    //    part2(mainInput)
 
 
 }
