@@ -1,3 +1,4 @@
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.absoluteValue
 import kotlin.math.sign
 
@@ -9,9 +10,11 @@ enum class Sprite {
     D,
 }
 
+val anthroCounter = AtomicInteger(0)
+
 data class Anthro(
     val sprite: Sprite,
-    val id: Int
+    val id: Int = anthroCounter.getAndIncrement()
 )
 
 val EMPTY_HALLWAY = Array(11) { Sprite.EMPTY }
@@ -33,14 +36,11 @@ data class AnthroPath(
     val path: List<Pair<Int, Int>>
 )
 
-data class PathSequence(
-    val paths: List<AnthroPath>
-)
-
 fun isInHallway(pos: Pair<Int, Int>): Boolean {
     return pos.second == 0
 }
 
+// Returns the path from `from` to `to` but excluding `from`.
 fun getPath(from: Pair<Int, Int>, to: Pair<Int, Int>): List<Pair<Int, Int>> {
     val path = mutableListOf<Pair<Int, Int>>()
 
@@ -61,55 +61,57 @@ fun getPath(from: Pair<Int, Int>, to: Pair<Int, Int>): List<Pair<Int, Int>> {
         path.add(to.first to it)
     }
 
+    path.removeFirstOrNull()
+
     return path
 }
 
-data class Anthros(
+val bottomRoomPositions = setOf(
+    2 to 2,
+    4 to 2,
+    6 to 2,
+    8 to 2,
+)
+val topRoomPositions = setOf(
+    2 to 1,
+    4 to 1,
+    6 to 1,
+    8 to 1,
+)
+
+val spriteToRoomMapping = mapOf(
+    Sprite.A to 2,
+    Sprite.B to 4,
+    Sprite.C to 6,
+    Sprite.D to 8,
+)
+
+fun getDesiredRoomsForAnthro(anthro: Anthro): Pair<Pair<Int, Int>, Pair<Int, Int>> {
+    val roomMapping = spriteToRoomMapping[anthro.sprite]!!
+    return Pair(
+        roomMapping to 1,
+        roomMapping to 2,
+    )
+}
+
+data class AnthrosState(
     // Map of anthros to their current coordinates
     val anthros: Map<Anthro, Pair<Int, Int>>
 ) {
-    val bottomRoomPositions = setOf(
-        2 to 2,
-        4 to 2,
-        6 to 2,
-        8 to 2,
-    )
-    val topRoomPositions = setOf(
-        2 to 1,
-        4 to 1,
-        6 to 1,
-        8 to 1,
-    )
-
-    val spriteToRoomMapping = mapOf(
-        Sprite.A to 2,
-        Sprite.B to 4,
-        Sprite.C to 6,
-        Sprite.D to 8,
-    )
-
-    fun isSpotEmpty(pos: Pair<Int, Int>): Boolean {
-        return !anthros.any { it.value == pos }
+    fun assign(anthro: Anthro, pos: Pair<Int, Int>): AnthrosState {
+        val currPos = anthros[anthro]!!
+        if (currPos == pos) {
+            return this
+        }
+        val newState = anthros.toMutableMap()
+        newState[anthro] = pos
+        return AnthrosState(newState)
     }
 
-    // Returns whether or not the path is blocked by any sprites
+    // Returns whether the path is blocked by any sprites
     fun isPathBlocked(path: List<Pair<Int, Int>>): Boolean {
         val currentSpritePositions = anthros.values.toSet()
         return path.any { currentSpritePositions.contains(it) }
-    }
-
-    fun getDesiredRoomsForAnthro(anthro: Anthro): Pair<Pair<Int, Int>, Pair<Int, Int>> {
-        val roomMapping = spriteToRoomMapping[anthro.sprite]!!
-        return Pair(
-            roomMapping to 1,
-            roomMapping to 2,
-        )
-    }
-
-    fun getAvailableRoomPositionsForAnthro(anthro: Anthro) {
-        val roomMapping = spriteToRoomMapping[anthro.sprite]!!
-        val topRoomPos = roomMapping to 1
-        val bottomRoomPos = roomMapping to 2
     }
 
     fun getSpriteAt(pos: Pair<Int, Int>): Sprite {
@@ -133,7 +135,34 @@ data class Anthros(
         return RoomPosition.WRONG_ROOM
     }
 
+    fun isGoodPath(from: Pair<Int, Int>, to: Pair<Int, Int>): Boolean {
+        val path = getPath(from, to)
+        return !isPathBlocked(path)
+    }
+
     fun getNextStatesForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
+        return buildList build@{
+            val pos = anthros[anthro]!!
+            if (!isInHallway(pos)) {
+                addAll(HALLWAY_SPOTS)
+            }
+
+            val (topDesired, bottomDesired) = getDesiredRoomsForAnthro(anthro)
+            val topSprite = getSpriteAt(topDesired)
+            val bottomSprite = getSpriteAt(bottomDesired)
+
+            if (bottomSprite == Sprite.EMPTY) {
+                add(bottomDesired)
+                return@build
+            }
+
+            if (bottomSprite == anthro.sprite && topSprite == Sprite.EMPTY) {
+                add(topDesired)
+            }
+        }
+    }
+
+    fun getNextStatesForAnthroOLD(anthro: Anthro): List<Pair<Int, Int>> {
         val pos = anthros[anthro]!!
         val (topDesired, bottomDesired) = getDesiredRoomsForAnthro(anthro)
         val topSprite = getSpriteAt(topDesired)
@@ -155,7 +184,28 @@ data class Anthros(
                 return emptyList()
             }
             RoomPosition.WRONG_ROOM -> {
-                
+                // If it's in the wrong room then we're just waiting
+                return buildList build@{
+                    if (isGoodPath(pos, bottomDesired)) {
+                        add(bottomDesired)
+                        return@build
+                    }
+
+                    // Bottom path is already populated with same sprite, next best spot is
+                    // the top desired spot
+                    if (bottomSprite == anthro.sprite) {
+                        if (isGoodPath(pos, topDesired)) {
+                            add(topDesired)
+                            return@build
+                        }
+                    }
+
+                    // Top and bottom desired spots aren't avaialble, just go to the hallway then.
+                    HALLWAY_SPOTS.forEach {
+                        val path = getPath(pos, it)
+                        if (!isPathBlocked(path)) add(it)
+                    }
+                }
             }
             RoomPosition.CORRECT_ROOM -> {
                 // We've already reached out desired location
@@ -187,65 +237,110 @@ data class Anthros(
 
         TODO()
     }
-}
-
-class GameMap(
-    topRoom: Array<Sprite>,
-    bottomRoom: Array<Sprite>,
-) {
-    val map = Array<Array<Sprite>>(11) { Array(3) { Sprite.EMPTY } }
-
-    init {
-        for (i in 0 until 4) {
-            map[2 + i * 2][1] = topRoom[i]
-            map[2 + i * 2][2] = bottomRoom[i]
-        }
-    }
-
-    val hallway: Array<Sprite>
-        get() {
-            val arr = Array<Sprite>(11) { Sprite.EMPTY }
-            for (i in 0 until 11) {
-                arr[i] = map[i][0]
-            }
-            return arr
-        }
-
-    val topRoom: Array<Sprite>
-        get() {
-            val arr = Array<Sprite>(4) { Sprite.EMPTY }
-            for (i in 0 until 4) {
-                arr[i] = map[2 + i * 2][1]
-            }
-            return arr
-        }
-
-    val bottomRoom: Array<Sprite>
-        get() {
-            val arr = Array<Sprite>(4) { Sprite.EMPTY }
-            for (i in 0 until 4) {
-                arr[i] = map[2 + i * 2][2]
-            }
-            return arr
-        }
 
     fun isCorrectConfiguration(): Boolean {
-        return topRoom.contentEquals(CORRECT_CONFIG) &&
-                bottomRoom.contentEquals(CORRECT_CONFIG) &&
-                hallway.contentEquals(EMPTY_HALLWAY)
+        return getSpriteAt(2 to 2) == Sprite.A &&
+                getSpriteAt(4 to 2) == Sprite.B &&
+                getSpriteAt(6 to 2) == Sprite.C &&
+                getSpriteAt(8 to 2) == Sprite.D &&
+                getSpriteAt(2 to 1) == Sprite.A &&
+                getSpriteAt(4 to 1) == Sprite.B &&
+                getSpriteAt(6 to 1) == Sprite.C &&
+                getSpriteAt(8 to 1) == Sprite.D
     }
+}
+
+sealed class Day23Result {
+    object NotPossible : Day23Result()
+    data class GoodResult(
+        val pathSequence: List<AnthroPath>,
+    ) : Day23Result() {
+        val cost = run {
+            pathSequence.sumOf {
+                when (it.anthro.sprite) {
+                    Sprite.EMPTY -> TODO()
+                    Sprite.A -> 1
+                    Sprite.B -> 10
+                    Sprite.C -> 100
+                    Sprite.D -> 1000
+                } * it.path.size
+            }
+        }
+    }
+}
+
+
+val dp = mutableMapOf<AnthrosState, Day23Result>()
+
+fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>): Day23Result {
+    if (dp.containsKey(state)) return dp[state]!!
+
+    if (state.isCorrectConfiguration()) {
+        dp[state] = Day23Result.GoodResult(currPath)
+    }
+
+    var bestSolution: Day23Result = Day23Result.NotPossible
+    var lowestCost = Int.MAX_VALUE
+    for (anthro in state.anthros) {
+        val nextPositions = state.getNextStatesForAnthro(anthro.key)
+        for (nextPos in nextPositions) {
+            val nextPath = getPath(anthro.value, nextPos)
+            if (!state.isPathBlocked(nextPath)) {
+                val res = solveProblem(
+                    state.assign(anthro.key, nextPos),
+                    currPath + AnthroPath(anthro.key, nextPath)
+                )
+                when (res) {
+                    is Day23Result.GoodResult -> {
+                        if (res.cost < lowestCost) {
+                            lowestCost = res.cost
+                            bestSolution = res
+                        }
+                    }
+                    Day23Result.NotPossible -> continue
+                }
+            }
+        }
+    }
+
+    dp[state] = bestSolution
+    return bestSolution
 }
 
 fun main() {
     fun part1(inputs: List<String>) {
-        val startingMap = GameMap(
-            arrayOf(Sprite.B, Sprite.C, Sprite.B, Sprite.D),
-            arrayOf(Sprite.A, Sprite.D, Sprite.C, Sprite.A)
+        val startingMap = AnthrosState(
+            mutableMapOf(
+                // Top rooms
+                Anthro(Sprite.B) to (2 to 1),
+                Anthro(Sprite.C) to (4 to 1),
+                Anthro(Sprite.B) to (6 to 1),
+                Anthro(Sprite.D) to (8 to 1),
+
+                // Bottom rooms
+                Anthro(Sprite.A) to (2 to 2),
+                Anthro(Sprite.D) to (4 to 2),
+                Anthro(Sprite.C) to (6 to 2),
+                Anthro(Sprite.A) to (8 to 2),
+            )
         )
 
-        val correctMap = GameMap(
-            arrayOf(Sprite.A, Sprite.B, Sprite.C, Sprite.D),
-            arrayOf(Sprite.A, Sprite.B, Sprite.C, Sprite.D)
+        println(solveProblem(startingMap, emptyList()))
+
+        val correctMap = AnthrosState(
+            mutableMapOf(
+                // Top rooms
+                Anthro(Sprite.A) to (2 to 1),
+                Anthro(Sprite.B) to (4 to 1),
+                Anthro(Sprite.C) to (6 to 1),
+                Anthro(Sprite.D) to (8 to 1),
+
+                // Bottom rooms
+                Anthro(Sprite.A) to (2 to 2),
+                Anthro(Sprite.B) to (4 to 2),
+                Anthro(Sprite.C) to (6 to 2),
+                Anthro(Sprite.D) to (8 to 2),
+            )
         )
 
         println(startingMap.isCorrectConfiguration())
@@ -259,12 +354,10 @@ fun main() {
     val testInput = readInput("day23_test")
     val mainInput = readInput("day23")
 
-    //    part1(testInput)
+    part1(testInput)
     //    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
-
-    println(getPath(2 to 2, 4 to 1))
 
 }
