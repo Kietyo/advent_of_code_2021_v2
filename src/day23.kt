@@ -1,3 +1,6 @@
+import kotlin.math.absoluteValue
+import kotlin.math.sign
+
 enum class Sprite {
     EMPTY,
     A,
@@ -13,6 +16,15 @@ data class Anthro(
 
 val EMPTY_HALLWAY = Array(11) { Sprite.EMPTY }
 val CORRECT_CONFIG = arrayOf(Sprite.A, Sprite.B, Sprite.C, Sprite.D)
+val HALLWAY_SPOTS = listOf(
+    0 to 0, 1 to 0, 3 to 0, 5 to 0, 7 to 0, 9 to 0, 10 to 0
+)
+
+enum class RoomPosition {
+    HALLWAY,
+    WRONG_ROOM,
+    CORRECT_ROOM
+}
 
 data class AnthroPath(
     // The anthro that moved
@@ -24,6 +36,33 @@ data class AnthroPath(
 data class PathSequence(
     val paths: List<AnthroPath>
 )
+
+fun isInHallway(pos: Pair<Int, Int>): Boolean {
+    return pos.second == 0
+}
+
+fun getPath(from: Pair<Int, Int>, to: Pair<Int, Int>): List<Pair<Int, Int>> {
+    val path = mutableListOf<Pair<Int, Int>>()
+
+    // Move up
+    (from.second downTo 0).forEach {
+        path.add(from.first to it)
+    }
+
+    // Move sideways
+    val delta = to.first - from.first
+    val dx = delta.sign
+    for (i in 1..delta.absoluteValue) {
+        path.add((from.first + i * dx) to 0)
+    }
+
+    // Move down
+    (1..to.second).forEach {
+        path.add(to.first to it)
+    }
+
+    return path
+}
 
 data class Anthros(
     // Map of anthros to their current coordinates
@@ -49,12 +88,14 @@ data class Anthros(
         Sprite.D to 8,
     )
 
-    fun isInHallway(pos: Pair<Int, Int>): Boolean {
-        return pos.second == 0
-    }
-
     fun isSpotEmpty(pos: Pair<Int, Int>): Boolean {
         return !anthros.any { it.value == pos }
+    }
+
+    // Returns whether or not the path is blocked by any sprites
+    fun isPathBlocked(path: List<Pair<Int, Int>>): Boolean {
+        val currentSpritePositions = anthros.values.toSet()
+        return path.any { currentSpritePositions.contains(it) }
     }
 
     fun getDesiredRoomsForAnthro(anthro: Anthro): Pair<Pair<Int, Int>, Pair<Int, Int>> {
@@ -78,35 +119,70 @@ data class Anthros(
         return anthro.key.sprite
     }
 
+    fun getRoomPosition(anthro: Anthro): RoomPosition {
+        val pos = anthros[anthro]!!
+        if (isInHallway(pos)) {
+            return RoomPosition.HALLWAY
+        }
+
+        val roomMapping = spriteToRoomMapping[anthro.sprite]!!
+        if (pos.first == roomMapping) {
+            return RoomPosition.CORRECT_ROOM
+        }
+
+        return RoomPosition.WRONG_ROOM
+    }
+
     fun getNextStatesForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
         val pos = anthros[anthro]!!
         val (topDesired, bottomDesired) = getDesiredRoomsForAnthro(anthro)
         val topSprite = getSpriteAt(topDesired)
         val bottomSprite = getSpriteAt(bottomDesired)
 
-        if (pos == bottomDesired) {
-            return emptyList()
-        }
+        val roomPosition = getRoomPosition(anthro)
 
-        if (pos == topDesired) {
-            if (bottomSprite == anthro.sprite) {
+        when (roomPosition) {
+            // If it's in the hallway, then it's just waiting for the next available room
+            RoomPosition.HALLWAY -> {
+                if (topSprite == Sprite.EMPTY) {
+                    if (bottomSprite == Sprite.EMPTY) {
+                        return listOf(bottomDesired)
+                    }
+                    if (bottomSprite == anthro.sprite) {
+                        return listOf(topDesired)
+                    }
+                }
                 return emptyList()
             }
-
-            TODO("have to go to the hallway if the bottom sprite is not the same as this")
-        }
-
-        // If it's in the hallway, then it's just waiting for the next available room
-        if (isInHallway(pos)) {
-            if (topSprite == Sprite.EMPTY) {
-                if (bottomSprite == Sprite.EMPTY) {
-                    return listOf(bottomDesired)
+            RoomPosition.WRONG_ROOM -> {
+                
+            }
+            RoomPosition.CORRECT_ROOM -> {
+                // We've already reached out desired location
+                if (pos == bottomDesired) {
+                    return emptyList()
                 }
-                if (bottomSprite == anthro.sprite) {
-                    return listOf(topDesired)
+
+                if (pos == topDesired) {
+                    // The bottom spot is already taken up by the same sprite, so the next desired location
+                    // would be the top spot.
+                    if (bottomSprite == anthro.sprite) {
+                        return emptyList()
+                    }
+
+                    // The bottom spot is empty, so just go to it
+                    if (bottomSprite == Sprite.EMPTY) {
+                        return listOf(bottomDesired)
+                    }
+
+                    // The bottom spot is a different sprite, have to move to the hallway to make
+                    // room for the other sprite to move out.
+                    return HALLWAY_SPOTS.filter {
+                        val path = getPath(pos, it)
+                        !isPathBlocked(path)
+                    }
                 }
             }
-            return emptyList()
         }
 
         TODO()
@@ -183,11 +259,12 @@ fun main() {
     val testInput = readInput("day23_test")
     val mainInput = readInput("day23")
 
-    part1(testInput)
+    //    part1(testInput)
     //    part1(mainInput)
     //
     //    part2(testInput)
     //    part2(mainInput)
 
+    println(getPath(2 to 2, 4 to 1))
 
 }
