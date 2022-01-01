@@ -21,7 +21,7 @@ val CORRECT_CONFIG = arrayOf(Sprite.A, Sprite.B, Sprite.C, Sprite.D)
 val HALLWAY_SPOTS = listOf(
     0 to 0, 1 to 0, 3 to 0, 5 to 0, 7 to 0, 9 to 0, 10 to 0
 )
-val NUM_UNIQUE_SPRITES_EACH = 2
+val NUM_UNIQUE_SPRITES_EACH = 4
 
 data class AnthroPath(
     // The anthro that moved
@@ -181,8 +181,14 @@ sealed class Day23Result {
 
 val dp = mutableMapOf<AnthrosState, Day23Result>()
 
+var numStatesExplored = 0
+
 fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>, depth: Int = 0): Day23Result {
     if (dp.containsKey(state)) return dp[state]!!
+    numStatesExplored++
+    if (numStatesExplored % 10000 == 0) {
+        println("Explored: $numStatesExplored")
+    }
 
     if (state.isCorrectConfiguration()) {
         val res = Day23Result.GoodResult(currPath)
@@ -226,17 +232,25 @@ fun main() {
     fun part1(inputs: List<String>) {
         val testMap = AnthrosState(
             mutableMapOf(
-                // Top rooms
                 Anthro(Sprite.B) to (2 to 1),
                 Anthro(Sprite.C) to (4 to 1),
                 Anthro(Sprite.B) to (6 to 1),
                 Anthro(Sprite.D) to (8 to 1),
 
-                // Bottom rooms
-                Anthro(Sprite.A) to (2 to 2),
-                Anthro(Sprite.D) to (4 to 2),
-                Anthro(Sprite.C) to (6 to 2),
+                Anthro(Sprite.D) to (2 to 2),
+                Anthro(Sprite.C) to (4 to 2),
+                Anthro(Sprite.B) to (6 to 2),
                 Anthro(Sprite.A) to (8 to 2),
+
+                Anthro(Sprite.D) to (2 to 3),
+                Anthro(Sprite.B) to (4 to 3),
+                Anthro(Sprite.A) to (6 to 3),
+                Anthro(Sprite.C) to (8 to 3),
+
+                Anthro(Sprite.A) to (2 to 4),
+                Anthro(Sprite.D) to (4 to 4),
+                Anthro(Sprite.C) to (6 to 4),
+                Anthro(Sprite.A) to (8 to 4),
             )
         )
 
@@ -248,15 +262,25 @@ fun main() {
                 Anthro(Sprite.D) to (6 to 1),
                 Anthro(Sprite.B) to (8 to 1),
 
+                Anthro(Sprite.D) to (2 to 2),
+                Anthro(Sprite.C) to (4 to 2),
+                Anthro(Sprite.B) to (6 to 2),
+                Anthro(Sprite.A) to (8 to 2),
+
+                Anthro(Sprite.D) to (2 to 3),
+                Anthro(Sprite.B) to (4 to 3),
+                Anthro(Sprite.A) to (6 to 3),
+                Anthro(Sprite.C) to (8 to 3),
+
                 // Bottom rooms
-                Anthro(Sprite.C) to (2 to 2),
-                Anthro(Sprite.A) to (4 to 2),
-                Anthro(Sprite.A) to (6 to 2),
-                Anthro(Sprite.B) to (8 to 2),
+                Anthro(Sprite.C) to (2 to 4),
+                Anthro(Sprite.A) to (4 to 4),
+                Anthro(Sprite.A) to (6 to 4),
+                Anthro(Sprite.B) to (8 to 4),
             )
         )
 
-        val res = solveProblem(testMap, emptyList())
+        val res = solveProblem(problemMap, emptyList())
         when (res) {
             is Day23Result.GoodResult -> {
                 println(
@@ -286,8 +310,20 @@ fun main() {
                 Anthro(Sprite.B) to (4 to 2),
                 Anthro(Sprite.C) to (6 to 2),
                 Anthro(Sprite.D) to (8 to 2),
+
+                Anthro(Sprite.A) to (2 to 3),
+                Anthro(Sprite.B) to (4 to 3),
+                Anthro(Sprite.C) to (6 to 3),
+                Anthro(Sprite.D) to (8 to 3),
+
+                Anthro(Sprite.A) to (2 to 4),
+                Anthro(Sprite.B) to (4 to 4),
+                Anthro(Sprite.C) to (6 to 4),
+                Anthro(Sprite.D) to (8 to 4),
             )
         )
+
+        println(correctMap.isCorrectConfiguration())
     }
 
     fun part2(inputs: List<String>) {
