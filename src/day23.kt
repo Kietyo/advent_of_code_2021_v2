@@ -17,17 +17,11 @@ data class Anthro(
     val id: Int = anthroCounter.getAndIncrement()
 )
 
-val EMPTY_HALLWAY = Array(11) { Sprite.EMPTY }
 val CORRECT_CONFIG = arrayOf(Sprite.A, Sprite.B, Sprite.C, Sprite.D)
 val HALLWAY_SPOTS = listOf(
     0 to 0, 1 to 0, 3 to 0, 5 to 0, 7 to 0, 9 to 0, 10 to 0
 )
-
-enum class RoomPosition {
-    HALLWAY,
-    WRONG_ROOM,
-    CORRECT_ROOM
-}
+val NUM_UNIQUE_SPRITES_EACH = 2
 
 data class AnthroPath(
     // The anthro that moved
@@ -61,12 +55,13 @@ fun getPath(from: Pair<Int, Int>, to: Pair<Int, Int>): List<Pair<Int, Int>> {
         path.add(to.first to it)
     }
 
+    // Remove the first point, which is where the anthro is already at.
     path.removeFirstOrNull()
 
     return path
 }
 
-val spriteToRoomMapping = mapOf(
+val SPRITE_TO_ROOM_MAPPING = mapOf(
     Sprite.A to 2,
     Sprite.B to 4,
     Sprite.C to 6,
@@ -74,9 +69,9 @@ val spriteToRoomMapping = mapOf(
 )
 
 fun getDesiredRoomsForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
-    val roomMapping = spriteToRoomMapping[anthro.sprite]!!
+    val roomMapping = SPRITE_TO_ROOM_MAPPING[anthro.sprite]!!
     return buildList {
-        for (i in 2 downTo 1) {
+        for (i in NUM_UNIQUE_SPRITES_EACH downTo 1) {
             add(roomMapping to i)
         }
     }
@@ -86,6 +81,10 @@ data class AnthrosState(
     // Map of anthros to their current coordinates
     val anthros: Map<Anthro, Pair<Int, Int>>
 ) {
+    init {
+        require(anthros.size == NUM_UNIQUE_SPRITES_EACH * CORRECT_CONFIG.size)
+    }
+
     fun assign(anthro: Anthro, pos: Pair<Int, Int>): AnthrosState {
         val currPos = anthros[anthro]!!
         if (currPos == pos) {
@@ -107,11 +106,6 @@ data class AnthrosState(
             if (it.value == pos) it else null
         } ?: return Sprite.EMPTY
         return anthro.key.sprite
-    }
-
-    fun isGoodPath(from: Pair<Int, Int>, to: Pair<Int, Int>): Boolean {
-        val path = getPath(from, to)
-        return !isPathBlocked(path)
     }
 
     fun getNextStatesForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
@@ -153,14 +147,15 @@ data class AnthrosState(
     }
 
     fun isCorrectConfiguration(): Boolean {
-        return getSpriteAt(2 to 2) == Sprite.A &&
-                getSpriteAt(4 to 2) == Sprite.B &&
-                getSpriteAt(6 to 2) == Sprite.C &&
-                getSpriteAt(8 to 2) == Sprite.D &&
-                getSpriteAt(2 to 1) == Sprite.A &&
-                getSpriteAt(4 to 1) == Sprite.B &&
-                getSpriteAt(6 to 1) == Sprite.C &&
-                getSpriteAt(8 to 1) == Sprite.D
+        for (sprite in CORRECT_CONFIG) {
+            val spriteRoom = SPRITE_TO_ROOM_MAPPING[sprite]!!
+            for (i in 1..NUM_UNIQUE_SPRITES_EACH) {
+                if (getSpriteAt(spriteRoom to i) != sprite) {
+                    return false
+                }
+            }
+        }
+        return true
     }
 }
 
