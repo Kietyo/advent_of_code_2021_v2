@@ -66,19 +66,6 @@ fun getPath(from: Pair<Int, Int>, to: Pair<Int, Int>): List<Pair<Int, Int>> {
     return path
 }
 
-val bottomRoomPositions = setOf(
-    2 to 2,
-    4 to 2,
-    6 to 2,
-    8 to 2,
-)
-val topRoomPositions = setOf(
-    2 to 1,
-    4 to 1,
-    6 to 1,
-    8 to 1,
-)
-
 val spriteToRoomMapping = mapOf(
     Sprite.A to 2,
     Sprite.B to 4,
@@ -86,12 +73,13 @@ val spriteToRoomMapping = mapOf(
     Sprite.D to 8,
 )
 
-fun getDesiredRoomsForAnthro(anthro: Anthro): Pair<Pair<Int, Int>, Pair<Int, Int>> {
+fun getDesiredRoomsForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
     val roomMapping = spriteToRoomMapping[anthro.sprite]!!
-    return Pair(
-        roomMapping to 1,
-        roomMapping to 2,
-    )
+    return buildList {
+        for (i in 2 downTo 1) {
+            add(roomMapping to i)
+        }
+    }
 }
 
 data class AnthrosState(
@@ -121,20 +109,6 @@ data class AnthrosState(
         return anthro.key.sprite
     }
 
-    fun getRoomPosition(anthro: Anthro): RoomPosition {
-        val pos = anthros[anthro]!!
-        if (isInHallway(pos)) {
-            return RoomPosition.HALLWAY
-        }
-
-        val roomMapping = spriteToRoomMapping[anthro.sprite]!!
-        if (pos.first == roomMapping) {
-            return RoomPosition.CORRECT_ROOM
-        }
-
-        return RoomPosition.WRONG_ROOM
-    }
-
     fun isGoodPath(from: Pair<Int, Int>, to: Pair<Int, Int>): Boolean {
         val path = getPath(from, to)
         return !isPathBlocked(path)
@@ -143,99 +117,39 @@ data class AnthrosState(
     fun getNextStatesForAnthro(anthro: Anthro): List<Pair<Int, Int>> {
         return buildList build@{
             val pos = anthros[anthro]!!
-            if (!isInHallway(pos)) {
+
+            val desiredSpots = getDesiredRoomsForAnthro(anthro)
+
+            if (isInHallway(pos)) {
+                for (desiredSpot in desiredSpots) {
+                    val spriteAtDesiredSpot = getSpriteAt(desiredSpot)
+                    if (spriteAtDesiredSpot == anthro.sprite) {
+                        // Already at the desired spot
+                        if (pos == desiredSpot) return@build
+                        continue
+                    }
+                    if (spriteAtDesiredSpot == Sprite.EMPTY) {
+                        add(desiredSpot)
+                    }
+                    break
+                }
+            } else {
+                for (desiredSpot in desiredSpots) {
+                    val spriteAtDesiredSpot = getSpriteAt(desiredSpot)
+                    if (spriteAtDesiredSpot == anthro.sprite) {
+                        if (pos == desiredSpot) return@build
+                        continue
+                    } else {
+                        if (spriteAtDesiredSpot == Sprite.EMPTY) {
+                            add(desiredSpot)
+                        }
+                        break
+                    }
+
+                }
                 addAll(HALLWAY_SPOTS)
             }
-
-            val (topDesired, bottomDesired) = getDesiredRoomsForAnthro(anthro)
-            val topSprite = getSpriteAt(topDesired)
-            val bottomSprite = getSpriteAt(bottomDesired)
-
-            if (bottomSprite == Sprite.EMPTY) {
-                add(bottomDesired)
-                return@build
-            }
-
-            if (bottomSprite == anthro.sprite && topSprite == Sprite.EMPTY) {
-                add(topDesired)
-            }
         }
-    }
-
-    fun getNextStatesForAnthroOLD(anthro: Anthro): List<Pair<Int, Int>> {
-        val pos = anthros[anthro]!!
-        val (topDesired, bottomDesired) = getDesiredRoomsForAnthro(anthro)
-        val topSprite = getSpriteAt(topDesired)
-        val bottomSprite = getSpriteAt(bottomDesired)
-
-        val roomPosition = getRoomPosition(anthro)
-
-        when (roomPosition) {
-            // If it's in the hallway, then it's just waiting for the next available room
-            RoomPosition.HALLWAY -> {
-                if (topSprite == Sprite.EMPTY) {
-                    if (bottomSprite == Sprite.EMPTY) {
-                        return listOf(bottomDesired)
-                    }
-                    if (bottomSprite == anthro.sprite) {
-                        return listOf(topDesired)
-                    }
-                }
-                return emptyList()
-            }
-            RoomPosition.WRONG_ROOM -> {
-                // If it's in the wrong room then we're just waiting
-                return buildList build@{
-                    if (isGoodPath(pos, bottomDesired)) {
-                        add(bottomDesired)
-                        return@build
-                    }
-
-                    // Bottom path is already populated with same sprite, next best spot is
-                    // the top desired spot
-                    if (bottomSprite == anthro.sprite) {
-                        if (isGoodPath(pos, topDesired)) {
-                            add(topDesired)
-                            return@build
-                        }
-                    }
-
-                    // Top and bottom desired spots aren't avaialble, just go to the hallway then.
-                    HALLWAY_SPOTS.forEach {
-                        val path = getPath(pos, it)
-                        if (!isPathBlocked(path)) add(it)
-                    }
-                }
-            }
-            RoomPosition.CORRECT_ROOM -> {
-                // We've already reached out desired location
-                if (pos == bottomDesired) {
-                    return emptyList()
-                }
-
-                if (pos == topDesired) {
-                    // The bottom spot is already taken up by the same sprite, so the next desired location
-                    // would be the top spot.
-                    if (bottomSprite == anthro.sprite) {
-                        return emptyList()
-                    }
-
-                    // The bottom spot is empty, so just go to it
-                    if (bottomSprite == Sprite.EMPTY) {
-                        return listOf(bottomDesired)
-                    }
-
-                    // The bottom spot is a different sprite, have to move to the hallway to make
-                    // room for the other sprite to move out.
-                    return HALLWAY_SPOTS.filter {
-                        val path = getPath(pos, it)
-                        !isPathBlocked(path)
-                    }
-                }
-            }
-        }
-
-        TODO()
     }
 
     fun isCorrectConfiguration(): Boolean {
@@ -272,11 +186,13 @@ sealed class Day23Result {
 
 val dp = mutableMapOf<AnthrosState, Day23Result>()
 
-fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>): Day23Result {
+fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>, depth: Int = 0): Day23Result {
     if (dp.containsKey(state)) return dp[state]!!
 
     if (state.isCorrectConfiguration()) {
-        dp[state] = Day23Result.GoodResult(currPath)
+        val res = Day23Result.GoodResult(currPath)
+        dp[state] = res
+        return res
     }
 
     var bestSolution: Day23Result = Day23Result.NotPossible
@@ -288,13 +204,17 @@ fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>): Day23Result {
             if (!state.isPathBlocked(nextPath)) {
                 val res = solveProblem(
                     state.assign(anthro.key, nextPos),
-                    currPath + AnthroPath(anthro.key, nextPath)
+                    emptyList(),
+                    depth + 1
                 )
                 when (res) {
                     is Day23Result.GoodResult -> {
-                        if (res.cost < lowestCost) {
-                            lowestCost = res.cost
-                            bestSolution = res
+                        val newGoodRes = Day23Result.GoodResult(
+                            currPath + AnthroPath(anthro.key, nextPath) + res.pathSequence
+                        )
+                        if (newGoodRes.cost < lowestCost) {
+                            lowestCost = newGoodRes.cost
+                            bestSolution = newGoodRes
                         }
                     }
                     Day23Result.NotPossible -> continue
@@ -309,7 +229,7 @@ fun solveProblem(state: AnthrosState, currPath: List<AnthroPath>): Day23Result {
 
 fun main() {
     fun part1(inputs: List<String>) {
-        val startingMap = AnthrosState(
+        val testMap = AnthrosState(
             mutableMapOf(
                 // Top rooms
                 Anthro(Sprite.B) to (2 to 1),
@@ -325,7 +245,38 @@ fun main() {
             )
         )
 
-        println(solveProblem(startingMap, emptyList()))
+        val problemMap = AnthrosState(
+            mutableMapOf(
+                // Top rooms
+                Anthro(Sprite.D) to (2 to 1),
+                Anthro(Sprite.C) to (4 to 1),
+                Anthro(Sprite.D) to (6 to 1),
+                Anthro(Sprite.B) to (8 to 1),
+
+                // Bottom rooms
+                Anthro(Sprite.C) to (2 to 2),
+                Anthro(Sprite.A) to (4 to 2),
+                Anthro(Sprite.A) to (6 to 2),
+                Anthro(Sprite.B) to (8 to 2),
+            )
+        )
+
+        val res = solveProblem(testMap, emptyList())
+        when (res) {
+            is Day23Result.GoodResult -> {
+                println(
+                    """
+                    res: $res
+                    cost: ${res.cost}
+                """.trimIndent()
+                )
+
+                println(res.pathSequence.joinToString("\n"))
+            }
+            Day23Result.NotPossible -> {
+                println("no solution found")
+            }
+        }
 
         val correctMap = AnthrosState(
             mutableMapOf(
@@ -342,9 +293,6 @@ fun main() {
                 Anthro(Sprite.D) to (8 to 2),
             )
         )
-
-        println(startingMap.isCorrectConfiguration())
-        println(correctMap.isCorrectConfiguration())
     }
 
     fun part2(inputs: List<String>) {
